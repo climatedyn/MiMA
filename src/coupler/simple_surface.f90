@@ -35,7 +35,6 @@ use qflux_mod, only: qflux_init,qflux,warmpool
 !mj local surface heating
 use physics_driver_mod, only: do_local_heating
 use local_heating_mod, only: horizontal_heating,ngauss,hamp,pcenter
-
 use     mpp_domains_mod, only: mpp_global_field
 
 implicit none
