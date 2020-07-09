@@ -248,7 +248,7 @@ pi = 4.0*atan(1.)
      rough_mom   = const_roughness
      rough_heat  = const_roughness
      rough_moist = const_roughness
-     if(trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then 	
+     if(trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then
          where ( .NOT. lmask_navy  ) rough_mom   = const_roughness * mom_roughness_land
 	    
 	  do j = 1, size(Atm%t_bot,2)
@@ -633,7 +633,15 @@ if( do_read_sst ) then
    call interpolator_init( sst_interp, trim(sst_file)//'.nc',Atm%lon_bnd,Atm%lat_bnd, data_out_of_bounds=(/CONSTANT/) )
 endif
 
- 
+!mj we need lmask_navy for roughness even if surface_choice .eq. 1 or do_sc_sst is .true.
+if (trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then 
+   allocate(lmask_navy(size(Atm%t_bot,1),size(Atm%t_bot,2)))
+   ocean_mask_worked = get_ocean_mask(Atm%lon_bnd,Atm%lat_bnd,lmask_navy)
+   if(.not.ocean_mask_worked) then
+      call error_mesg('get_ocean_mask','land_option="'//trim(land_option)//'"'// &
+           ' and ocean_mask is not present or water data file does not exist', FATAL)
+   endif
+endif
 
 
 if (surface_choice .eq. 1 .and. .not. do_sc_sst)then
@@ -667,12 +675,6 @@ if (surface_choice .eq. 1 .and. .not. do_sc_sst)then
         where(land_sea_mask .gt. 0) land_sea_heat_capacity = land_capacity
 ! mj use navy land-sea mask
      else if (trim(land_option) .eq. 'interpolated')then
-        allocate(lmask_navy(size(land_sea_heat_capacity,1),size(land_sea_heat_capacity,2)))
-        ocean_mask_worked = get_ocean_mask(Atm%lon_bnd,Atm%lat_bnd,lmask_navy)
-        if(.not.ocean_mask_worked) then
-           call error_mesg('get_ocean_mask','land_option="'//trim(land_option)//'"'// &
-                         ' and ocean_mask is not present but water data file does not exist', FATAL)
-        endif
         where(.not. lmask_navy) land_sea_heat_capacity = land_capacity
 ! mj land heat capacity function of surface topography
    else if(trim(land_option) .eq. 'zsurf')then
@@ -695,33 +697,28 @@ if (surface_choice .eq. 1 .and. .not. do_sc_sst)then
            enddo
         enddo
      ! cig land heat capacity function of ocean_mask (if ocean mask exists), and use MJ's algorithm for deeper ocean mixed layer depth for poles vs tropics
-    else if(trim(land_option) .eq. 'oceanmaskpole' .and. (trop_capacity .ne. heat_capacity .or. np_cap_factor .ne. 1.0))then
-
- 	  allocate(lmask_navy(size(land_sea_heat_capacity,1),size(land_sea_heat_capacity,2)))	
-        ocean_mask_worked = get_ocean_mask(Atm%lon_bnd,Atm%lat_bnd,lmask_navy)
-      
-        if(.not.ocean_mask_worked) then
-           call error_mesg('get_ocean_mask','land_option="'//trim(land_option)//'"'// &
-                         ' and ocean_mask is not present but water data file does not exist', FATAL)
-        endif
+     else if(trim(land_option) .eq. 'oceanmaskpole')then
+        
+        if (trop_capacity .ne. heat_capacity .or. np_cap_factor .ne. 1.0) then
             
-        	    do j=1,size(Atm%t_bot,2)
-           		    lat = 0.5*180/pi*( Atm%lat_bnd(j+1) + Atm%lat_bnd(j) )
-             	 	    if ( lat > 0. ) then
-              			    loc_cap = heat_capacity*np_cap_factor
-              		    else
-			            loc_cap = heat_capacity
-	                    endif
-             	            if ( abs(lat) < trop_cap_limit ) then
-		                  land_sea_heat_capacity(:,j) = trop_capacity
-	                   elseif ( abs(lat) < heat_cap_limit ) then
-             			      land_sea_heat_capacity(:,j) = trop_capacity*(1.-(abs(lat)-trop_cap_limit)/(heat_cap_limit-trop_cap_limit)) + (abs(lat)-trop_cap_limit)/(heat_cap_limit-trop_cap_limit)*loc_cap
-             	          elseif ( lat > heat_cap_limit ) then
-			                  land_sea_heat_capacity(:,j) = loc_cap
-                           end if
-                     enddo	   
-	       where(.not. lmask_navy) land_sea_heat_capacity = land_capacity
-   endif
+           do j=1,size(Atm%t_bot,2)
+              lat = 0.5*180/pi*( Atm%lat_bnd(j+1) + Atm%lat_bnd(j) )
+              if ( lat > 0. ) then
+                 loc_cap = heat_capacity*np_cap_factor
+              else
+                 loc_cap = heat_capacity
+              endif
+              if ( abs(lat) < trop_cap_limit ) then
+                 land_sea_heat_capacity(:,j) = trop_capacity
+              elseif ( abs(lat) < heat_cap_limit ) then
+                 land_sea_heat_capacity(:,j) = trop_capacity*(1.-(abs(lat)-trop_cap_limit)/(heat_cap_limit-trop_cap_limit)) + (abs(lat)-trop_cap_limit)/(heat_cap_limit-trop_cap_limit)*loc_cap
+              elseif ( lat > heat_cap_limit ) then
+                 land_sea_heat_capacity(:,j) = loc_cap
+              end if
+           enddo
+           where(.not. lmask_navy) land_sea_heat_capacity = land_capacity
+        endif
+     endif
 endif
 
 
