@@ -155,7 +155,7 @@ integer, parameter :: max_diag_fields = 30
 integer, parameter :: INCREASING_DOWNWARD = 1, INCREASING_UPWARD = -1
 !++lwh
 ! Flags to indicate whether the time interpolation should be linear or some other scheme for seasonal data.
-integer, parameter :: LINEAR = 1, SEASONAL = 2, BILINEAR = 3
+integer, parameter :: LINEAR = 1, SEASONAL = 2, BILINEAR = 3, NONE = 0
 
 ! Flags to indicate where climatology pressure levels are pressure or sigma levels
 integer, parameter :: PRESSURE = 1, SIGMA = 2 
@@ -752,7 +752,12 @@ endif
    allocate(clim_type%data(size(lonb_mod(:))-1, size(latb_mod(:))-1, nlev, ntime, num_fields))
    clim_type%data = 0.0
    clim_type%TIME_FLAG = SEASONAL
-! case (default)
+   ! case (default)
+!mj no time component in input file
+case (-1)
+   allocate(clim_type%data(size(lonb_mod(:))-1, size(latb_mod(:))-1, nlev, 1, num_fields))
+   clim_type%data = 0.0
+   clim_type%TIME_FLAG = NONE
    
 end select
 
@@ -763,9 +768,12 @@ end select
 !----------------------------------------------------------------------
 
    if(clim_type%TIME_FLAG .eq. LINEAR ) then
-   allocate(clim_type%time_init(num_fields,2))
+      allocate(clim_type%time_init(num_fields,2))
+!mj no time component in input file
+   elseif(clim_type%TIME_FLAG .eq. NONE ) then
+      allocate(clim_type%time_init(num_fields,1))
    else
-   allocate(clim_type%time_init(num_fields,ntime))
+      allocate(clim_type%time_init(num_fields,ntime))
    endif
    allocate (clim_type%indexm(num_fields),   &
              clim_type%indexp(num_fields),   &
@@ -894,7 +902,14 @@ if( clim_type%TIME_FLAG .eq. LINEAR  .and. read_all_on_init) then
 
    call mpp_close (unit)
 endif
-
+!mj no time component in input file
+if( clim_type%TIME_FLAG .eq. NONE) then
+   do i=1,num_fields
+      call read_data( clim_type, clim_type%field_type(i), &
+           clim_type%data(:,:,:,1,i), 0, i, base_time )
+   enddo
+   call mpp_close(unit)
+endif
 module_is_initialized = .true.
 
 call write_version_number (version, tagname)
@@ -1286,8 +1301,12 @@ select case(clim_type%TIME_FLAG)
                                tweight2* tweight3*   &
                    clim_type%nmon_nyear(istart:iend,jstart:jend,:,n)
     
-    end do
-
+   end do
+!mj no time dependence in input file   
+  case (NONE)
+    do n=1, size(clim_type%field_name(:))
+       hinterp_data(:,:,:,n) = clim_type%data(istart:iend,jstart:jend,:,1,n)
+   end do
 end select
     
 select case(clim_type%level_type)
@@ -1815,12 +1834,16 @@ do i= 1,size(clim_type%field_name(:))
     if(present(clim_units)) then
       call mpp_get_atts(clim_type%field_type(i),units=clim_units)
       clim_units = chomp(clim_units)
-    endif
-    if(size(clim_type%time_slice(:)).le. 12 ) then
+   endif
+   if(size(clim_type%time_slice(:)).eq. 0 ) then
+      taum = 1
+      taup = 1
+      tweight = 1
+   elseif(size(clim_type%time_slice(:)).le. 12 ) then
       call time_interp(Time, clim_type%time_slice, tweight, taum, taup, modtime=YEAR )
-    else
+   else
       call time_interp(Time, clim_type%time_slice, tweight, taum, taup )
-    endif
+   endif
 
 ! If the climatology file has seasonal, a split time-line or has all the data 
 ! read in then enter this loop.
@@ -1898,6 +1921,9 @@ select case(clim_type%TIME_FLAG)
   case (SEASONAL)
 ! Do sine fit to data at this point
   case (BILINEAR)
+!mj input file does not have time information
+  case (NONE)
+     hinterp_data = clim_type%data(istart:iend,jstart:jend,:,1,i)
 
 end select
 
@@ -2005,8 +2031,13 @@ real, allocatable :: climdata(:,:,:), climdata2(:,:,:)
 
       allocate(climdata(size(clim_type%lon(:)),size(clim_type%lat(:)), &
                         size(clim_type%levs(:))))
-
-      call mpp_read(clim_type%unit,src_field, climdata,nt)
+!mj no time component in input file if nt == 0
+      if(nt.gt.0)then
+         call mpp_read(clim_type%unit,src_field, climdata,nt)
+      else
+         call mpp_read(clim_type%unit,src_field, climdata)
+      endif
+         
 
 !  if vertical index increases upward, flip the data so that lowest
 !  pressure level data is at index 1, rather than the highest pressure
