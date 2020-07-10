@@ -22,6 +22,9 @@ use spectral_initialize_fields_mod, only: spectral_initialize_fields
 use       topog_regularization_mod, only: compute_lambda, regularize
 
 use                 topography_mod, only: gaussian_topog_init, get_topog_mean, get_ocean_mask
+!mj initial conditions
+use               time_manager_mod, only: time_type
+use               interpolator_mod, only: interpolate_type
 
 implicit none
 private
@@ -46,7 +49,8 @@ Contains
 subroutine spectral_init_cond(reference_sea_level_press, triang_trunc, use_virtual_temperature, topography_option, &
                               vert_coord_option, vert_difference_option, scale_heights, surf_res,    &
                               p_press, p_sigma, exponent, ocean_topog_smoothing, pk, bk, vors, divs, &
-                              ts, ln_ps, ug, vg, tg, psg, vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions)
+                              ts, ln_ps, ug, vg, tg, psg, vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions, &
+                              lonb, latb, initial_file, Time, init_conds) !mj initial conditions
 
 real,    intent(in) :: reference_sea_level_press
 logical, intent(in) :: triang_trunc, use_virtual_temperature
@@ -60,7 +64,11 @@ real,    intent(out), dimension(:,:  ) :: psg
 real,    intent(out), dimension(:,:,:) :: vorg, divg
 real,    intent(out), dimension(:,:  ) :: surf_geopotential
 logical, optional, intent(in), dimension(:,:) :: ocean_mask
-logical, intent(in) :: specify_initial_conditions   !epg+ray  
+logical, intent(in) :: specify_initial_conditions   !epg+ray
+real,    intent(in), dimension(:), optional :: lonb, latb ! mj initial conditions
+character(len=*), intent(in), optional      :: initial_file ! mj initial conditions
+type(time_type), intent(in), optional       :: Time
+type(interpolate_type),intent(out),optional :: init_conds
 
 ! epg+ray: choice_of_init is used by spectral_initialize_fields to actually set up initial conditions 
 integer :: choice_of_init = 2
@@ -88,8 +96,14 @@ call compute_vert_coord (vert_coord_option, scale_heights, surf_res, exponent, p
 call get_topography(topography_option, ocean_topog_smoothing, surf_geopotential, ocean_mask)
 call press_and_geopot_init(pk, bk, use_virtual_temperature, vert_difference_option, surf_geopotential)
 
-call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
-                  surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg)
+if (choice_of_init .eq. 3) then
+   call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
+        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, lonb, latb, initial_file, Time, init_conds)
+else
+   call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
+        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg)
+endif
+   
 
 call check_vert_coord(size(ug,3), psg)
 

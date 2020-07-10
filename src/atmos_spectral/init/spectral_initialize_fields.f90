@@ -7,7 +7,9 @@ use              fms_mod, only: mpp_pe, mpp_root_pe, write_version_number, file_
 use        constants_mod, only: rdgas
 
 use       transforms_mod, only: trans_grid_to_spherical, trans_spherical_to_grid, vor_div_from_uv_grid, &
-                                uv_grid_from_vor_div, get_grid_domain, get_spec_domain, area_weighted_global_mean
+     uv_grid_from_vor_div, get_grid_domain, get_spec_domain, area_weighted_global_mean
+!mj initial conditions
+use     time_manager_mod, only: time_type
 
 implicit none
 private
@@ -30,8 +32,10 @@ contains
 
 !-------------------------------------------------------------------------------------------------
 subroutine spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
-                        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg)
-
+                        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, lonb, latb, initial_file, Time, init_conds)
+  !mj use interpolator for initial conditions
+  use interpolator_mod, only: interpolate_type,interpolator_init,CONSTANT,interpolator
+  use press_and_geopot_mod,only: pressure_variables
 real,    intent(in) :: reference_sea_level_press
 logical, intent(in) :: triang_trunc
 integer, intent(in) :: choice_of_init
@@ -43,6 +47,10 @@ complex, intent(out), dimension(:,:,:  ) :: vors, divs, ts
 real,    intent(out), dimension(:,:    ) :: psg
 real,    intent(out), dimension(:,:,:  ) :: ug, vg, tg
 real,    intent(out), dimension(:,:,:  ) :: vorg, divg
+real,    intent(in),  dimension(:      ),optional :: lonb, latb !mj initial conditions
+character(len=*), intent(in),optional             :: initial_file
+type(time_type), intent(in),optional              :: Time
+type(interpolate_type),optional,intent(out)       :: init_conds
 
 real, allocatable, dimension(:,:) :: ln_psg
 
@@ -53,8 +61,9 @@ integer :: ms, me, ns, ne, is, ie, js, je, num_levels
 
 ! epg: needed to load in initial conditions from a netcdf file
 !      code was initially developed by Lorenzo Polvani; hence lmp
+! mj: generalisation to use interpolator capabilities
 real, allocatable,dimension(:,:,:) :: lmptmp
-integer :: ncid,vid,err,counts(3)
+real, allocatable,dimension(:,:,:) :: p_half,ln_p_half,p_full,ln_p_full 
 ! --------
 
 if(.not.entry_to_logfile_done) then
@@ -115,46 +124,66 @@ if(choice_of_init == 2) then   ! initial vorticity perturbation used in benchmar
   call uv_grid_from_vor_div(vors, divs, ug, vg)
 endif
 
-! epg: This was written by Lorenzo Polvani to load in the initial conditions
-!      from a netcdf file, which must be called "initial_conditions.nc" and must be placed in the
-!      INPUT directory from where the code is being run.
-If (choice_of_init == 3) then !initialize with prescribed input
-   if (.not.file_exist('INPUT/initial_conditions.nc')) then
-      call error_mesg('spectral_initialize_fields','Could not find INPUT/initial_conditions.nc!',FATAL)
-   end if
-
-   ! first, open up the netcdf file
-   ncid = ncopn('INPUT/initial_conditions.nc',NCNOWRIT,err)
-   ! This array tells us the size of input variables.
-   counts(1) = size(ug,1)
-   counts(2) = size(ug,2)
-   counts(3) = size(ug,3)
-   ! Allocate space to put the initial condition information, temporarily.
-   allocate(lmptmp(counts(1),counts(2),counts(3)))
-   
-   ! load the zonal wind initial conditions
-   vid = ncvid(ncid,'ucomp',err)
-   call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
-   ug(:,:,:) = lmptmp
- 
-   ! load the meridional wind
-   vid = ncvid(ncid,'vcomp',err)
-   call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
-   vg(:,:,:) = lmptmp
- 
-   ! load temperature
-   vid = ncvid(ncid,'temp',err)
-   call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
-   tg(:,:,:) = lmptmp
-
-   ! load surface pressure
-   vid = ncvid(ncid,'ps',err)
-   call ncvgt(ncid,vid,(/is,js/),counts(1:2),lmptmp(:,:,1),err)
-   psg(:,:) = lmptmp(:,:,1)
+! mj initial conditions: use of interpolator capabilities, from a file with name INPUT/$(initial_file).nc
+if (choice_of_init == 3) then !initialize with prescribed input
+   print*,'INITIALISING INTERPOLATOR'
+   call interpolator_init(init_conds, trim(initial_file)//'.nc', lonb, latb, data_out_of_bounds=(/CONSTANT/))
+   ! we will need all of these just to get p_half.
+   print*,'ALLOCATING PFULL'
+   allocate(p_full(size(psg,1), size(psg,2), num_levels))
+   print*,'ALLOCATING LNPFULL'
+   allocate(ln_p_full(size(psg,1), size(psg,2), num_levels))
+   print*,'ALLOCATING PHALF'
+   allocate(p_half(size(psg,1), size(psg,2), num_levels+1))
+   print*,'ALLOCATING LNPHALF'
+   allocate(ln_p_half(size(psg,1), size(psg,2), num_levels+1))
+   ! then read psg from file
+   call interpolator(init_conds, Time, psg, 'ps')
    ln_psg = log(psg(:,:))
- 
-   ! close up the input netcdf file.
-   call ncclos(ncid,err)
+   ! use psg to compute p_half
+   call pressure_variables(p_half, ln_p_half, p_full, ln_p_full, psg)
+   ! forget about all other pressure variables which we don't need
+   deallocate(ln_p_half,p_full,ln_p_full)
+   ! interpolate onto full 3D field
+   call interpolator(init_conds, Time, p_half, ug, 'ucomp')
+   call interpolator(init_conds, Time, p_half, vg, 'vcomp')
+   call interpolator(init_conds, Time, p_half, tg, 'temp')
+!   if (.not.file_exist('INPUT/initial_conditions.nc')) then
+!      call error_mesg('spectral_initialize_fields','Could not find INPUT/initial_conditions.nc!',FATAL)
+!   end if
+!
+!   ! first, open up the netcdf file
+!   ncid = ncopn('INPUT/initial_conditions.nc',NCNOWRIT,err)
+!   ! This array tells us the size of input variables.
+!   counts(1) = size(ug,1)
+!   counts(2) = size(ug,2)
+!   counts(3) = size(ug,3)
+!   ! Allocate space to put the initial condition information, temporarily.
+!   allocate(lmptmp(counts(1),counts(2),counts(3)))
+!   
+!   ! load the zonal wind initial conditions
+!   vid = ncvid(ncid,'ucomp',err)
+!   call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
+!   ug(:,:,:) = lmptmp
+! 
+!   ! load the meridional wind
+!   vid = ncvid(ncid,'vcomp',err)
+!   call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
+!   vg(:,:,:) = lmptmp
+! 
+!   ! load temperature
+!   vid = ncvid(ncid,'temp',err)
+!   call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
+!   tg(:,:,:) = lmptmp
+!
+!   ! load surface pressure
+!   vid = ncvid(ncid,'ps',err)
+!   call ncvgt(ncid,vid,(/is,js/),counts(1:2),lmptmp(:,:,1),err)
+!   psg(:,:) = lmptmp(:,:,1)
+!   ln_psg = log(psg(:,:))
+! 
+!   ! close up the input netcdf file.
+!   call ncclos(ncid,err)
  
    ! and lastly, let us know that it worked!
    if(mpp_pe() == mpp_root_pe()) then
@@ -162,7 +191,6 @@ If (choice_of_init == 3) then !initialize with prescribed input
    endif
  
 endif
-!epg: end of lorenzo polvani's script --------
 
 
 !  initial spectral fields (and spectrally-filtered) grid fields
