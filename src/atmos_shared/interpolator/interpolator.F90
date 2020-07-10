@@ -1101,7 +1101,12 @@ end do
       call mpp_get_atts(clim_type%field_type(i),units=clim_units)
       clim_units = chomp(clim_units)
     endif
-    if(size(clim_type%time_slice(:)).le. 12 ) then
+!mj input file does not have time information
+    if(size(clim_type%time_slice(:)).eq. 0 ) then
+      taum = 1
+      taup = 1
+      tweight = 1
+    elseif(size(clim_type%time_slice(:)).le. 12 ) then
        call time_interp(Time, clim_type%time_slice, tweight, taum, taup, modtime=YEAR )
     else
        call time_interp(Time, clim_type%time_slice, tweight, taum, taup )
@@ -1481,7 +1486,12 @@ do i= 1,size(clim_type%field_name(:))
       call mpp_get_atts(clim_type%field_type(i),units=clim_units)
       clim_units = chomp(clim_units)
     endif
-    if(size(clim_type%time_slice(:)).le. 12 ) then
+!mj input file does not have time information
+    if(size(clim_type%time_slice(:)).eq. 0 ) then
+      taum = 1
+      taup = 1
+      tweight = 1
+    elseif(size(clim_type%time_slice(:)).le. 12 ) then
        call time_interp(Time, clim_type%time_slice, tweight, taum, taup, modtime=YEAR )
     else
        call time_interp(Time, clim_type%time_slice, tweight, taum, taup )
@@ -1672,6 +1682,11 @@ select case(clim_type%TIME_FLAG)
     (1-tweight2)  *    tweight3  * clim_type%nmon_pyear(istart:iend,jstart:jend,:,i) + &
          tweight1 * (1-tweight3) * clim_type%pmon_nyear(istart:iend,jstart:jend,:,i) + &
          tweight2 *     tweight3 * clim_type%nmon_nyear(istart:iend,jstart:jend,:,i)
+!mj no time dependence in input file   
+  case (NONE)
+    do n=1, size(clim_type%field_name(:))
+       hinterp_data = clim_type%data(istart:iend,jstart:jend,:,1,i)
+   end do
     
 
 
@@ -1835,6 +1850,7 @@ do i= 1,size(clim_type%field_name(:))
       call mpp_get_atts(clim_type%field_type(i),units=clim_units)
       clim_units = chomp(clim_units)
    endif
+!mj input file does not have time information
    if(size(clim_type%time_slice(:)).eq. 0 ) then
       taum = 1
       taup = 1
