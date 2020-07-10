@@ -113,10 +113,6 @@ character(len=32), parameter :: default_advect_vert    = 'second_centered'
 character(len=32), parameter :: default_hole_filling   = 'off'
 
 
-! epg+ray: this netcdf include file is needed to load in specified initial
-! conditions.  Only used if specify_initial_conditions == .true.
-include 'netcdf.inc'
-
 !===============================================================================================
 ! namelist variables
 
@@ -168,8 +164,9 @@ real    :: damping_coeff       = 1.15740741e-4, & ! (one tenth day)**-1
 
 !epg+ray: this next namelist variable allows you to upload initial conditions
 !         u,v,T, ps, and q must be specified (as: ucomp, vcomp, temp, ps, and sphum, respecitively)
-!         in a netcdf file called "initial_conditions.nc" and placed in the INPUT/ directory
+!         in a netcdf file called "$(initial_file).nc" and placed in the INPUT/ directory
 logical :: specify_initial_conditions = .false.
+character(len=32) :: initial_file = 'initial_conditions'
 
 
 
@@ -189,7 +186,7 @@ namelist /spectral_dynamics_nml/ use_virtual_temperature, damping_option,       
                                  p_press, p_sigma, exponent, ocean_topog_smoothing, initial_sphum,   &
                                  valid_range_t, eddy_sponge_coeff, zmu_sponge_coeff, zmv_sponge_coeff, &
                                  print_interval, num_steps,                                          &
-                                 water_correction_limit, specify_initial_conditions        !mj + epg
+                                 water_correction_limit, specify_initial_conditions, initial_file     !mj + epg
 
 contains
 
@@ -379,7 +376,13 @@ do ntr=1,num_tracers
   endif
 enddo
 
-call read_restart_or_do_coldstart(tracer_attributes, ocean_mask)
+!mj needed for interpolator if start from initial conditions
+allocate (glon_bnd (lon_max + 1))
+allocate (glat_bnd (lat_max + 1))
+
+call get_grid_boundaries(glon_bnd, glat_bnd, global=.true.)
+
+call read_restart_or_do_coldstart(tracer_attributes, ocean_mask, glon_bnd, glat_bnd, Time)
 
 call press_and_geopot_init(pk, bk, use_virtual_temperature, vert_difference_option, surf_geopotential)
 
@@ -415,10 +418,6 @@ call get_sin_lat (sin_lat)
 
 coriolis = 2*omega*sin_lat
 
-allocate (glon_bnd (lon_max + 1))
-allocate (glat_bnd (lat_max + 1))
-
-call get_grid_boundaries(glon_bnd, glat_bnd, global=.true.)
 call fv_advection_init  (lon_max, lat_max, glat_bnd, 360./fourier_inc)
 
 deallocate (glat_bnd)
@@ -463,13 +462,16 @@ return
 end subroutine spectral_dynamics_init
 
 !===============================================================================================
-subroutine read_restart_or_do_coldstart(tracer_attributes, ocean_mask)
-
+subroutine read_restart_or_do_coldstart(tracer_attributes, ocean_mask, lonb, latb, Time)
+  use interpolator_mod, only: interpolate_type,interpolator_init,CONSTANT,interpolator
 ! For backward compatability, this routine has the capability
 ! to read native data restart files written by inchon code.
 
 type(tracer_type), intent(inout), dimension(:) :: tracer_attributes
 logical, optional, intent(in), dimension(:,:) :: ocean_mask
+! mj interpolate initial conditions
+real, intent(in), dimension(:) :: lonb, latb
+type(time_type), intent(in)    :: Time
 
 integer :: m, n, k, nt, ntr, unit
 integer, dimension(4) :: siz
@@ -478,8 +480,10 @@ character(len=64) :: file, tr_name
 character(len=4) :: ch1,ch2,ch3,ch4,ch5,ch6
 
 ! epg+ray: for loading the initial tracer distribution (after Lorenzo Polvani's code for doing this)
+!mj modified to allow for much more flexible use of interpolator routines
+type(interpolate_type) :: init_conds
 real, allocatable,dimension(:,:,:) :: lmptmp
-integer :: ncid,vid,err,counts(3)
+real, allocatable,dimension(:,:,:) :: p_half,p_full,ln_p_full,ln_p_half
 ! ------
 
 file = 'INPUT/spectral_dynamics.res.nc'
@@ -555,11 +559,20 @@ else if(file_exist('INPUT/spectral_dynamics.res')) then
 else
   previous = 1
   current  = 1
-  call spectral_init_cond(reference_sea_level_press, triang_trunc, use_virtual_temperature, topography_option,  &
-                          vert_coord_option, vert_difference_option, scale_heights, surf_res, p_press, p_sigma, &
-                          exponent, ocean_topog_smoothing, pk, bk,                                              &
-                          vors(:,:,:,1), divs(:,:,:,1), ts(:,:,:,1), ln_ps(:,:,1), ug(:,:,:,1), vg(:,:,:,1),    &
-                          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask,specify_initial_conditions)
+  if ( specify_initial_conditions ) then
+     call spectral_init_cond(reference_sea_level_press, triang_trunc, use_virtual_temperature, topography_option,  &
+          vert_coord_option, vert_difference_option, scale_heights, surf_res, p_press, p_sigma, &
+          exponent, ocean_topog_smoothing, pk, bk,                                              &
+          vors(:,:,:,1), divs(:,:,:,1), ts(:,:,:,1), ln_ps(:,:,1), ug(:,:,:,1), vg(:,:,:,1),    &
+          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask,specify_initial_conditions, lonb, latb, initial_file, Time, init_conds)
+  else
+     call spectral_init_cond(reference_sea_level_press, triang_trunc, use_virtual_temperature, topography_option,  &
+          vert_coord_option, vert_difference_option, scale_heights, surf_res, p_press, p_sigma, &
+          exponent, ocean_topog_smoothing, pk, bk,                                              &
+          vors(:,:,:,1), divs(:,:,:,1), ts(:,:,:,1), ln_ps(:,:,1), ug(:,:,:,1), vg(:,:,:,1),    &
+          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions)
+  endif
+   
 
   vors (:,:,:,2) = vors (:,:,:,1)
   divs (:,:,:,2) = divs (:,:,:,1)
@@ -573,32 +586,50 @@ else
     if(trim(tracer_attributes(ntr)%name) == 'sphum') then
       if(specify_initial_conditions) then  
          !epg+ray: This loads in sphum from the file initial_conditions.nc
-         if (.not.file_exist('INPUT/initial_conditions.nc')) then
-            call error_mesg('spectral_initialize_fields','Could not find INPUT/initial_conditions.nc!',FATAL)
-         endif
-         
-         ! open up the netcdf file`
-         ncid = ncopn('INPUT/initial_conditions.nc',NCNOWRIT,err)
-         ! This array tells us the size of input variables.
-         counts(1) = size(grid_tracers,1)
-         counts(2) = size(grid_tracers,2)
-         counts(3) = size(grid_tracers,3)
+         !mj modified to use interpolator routines
+         print*,'READING INITIAL SPHUM CONDITIONS'
          ! Allocate space to put the initial condition information, temporarily.
-         allocate(lmptmp(counts(1),counts(2),counts(3)))          
-         
-         ! load sphum, if it has been specified.  Otherwise write error and break.
-         vid = ncvid(ncid,'sphum',err)
-         if(err == 0) then
-            call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
-            grid_tracers(:,:,:,1,ntr) = lmptmp
-            grid_tracers(:,:,:,2,ntr) = lmptmp
-            if(mpp_pe() == mpp_root_pe()) then
-               print *,'tracer ', trim(tracer_attributes(ntr)%name), ' read in from initial_conditions.nc'
-            endif
-         else
-            call error_mesg('read_restart_or_do_coldstart','Could not find '//trim(tracer_attributes(ntr)%name)// &
-                'in initial_conditions.nc',FATAL)
+         allocate(lmptmp(size(ug,1),size(ug,2),size(ug,3)))
+         ! need to get the pressure at half levels for interpolation
+         allocate(p_full(size(ug,1), size(ug,2), size(ug,3)))
+         allocate(ln_p_full(size(ug,1), size(ug,2), size(ug,3)))
+         allocate(p_half(size(ug,1), size(ug,2), size(ug,3)+1))
+         allocate(ln_p_half(size(ug,1), size(ug,2), size(ug,3)+1))
+         ! use psg to compute p_half
+         call pressure_variables(p_half, ln_p_half, p_full, ln_p_full, psg(:,:,1))
+         call interpolator(init_conds, Time, p_half, lmptmp, 'sphum')
+         grid_tracers(:,:,:,1,ntr) = lmptmp
+         grid_tracers(:,:,:,2,ntr) = lmptmp
+         deallocate(lmptmp,p_full,p_half,ln_p_full,ln_p_half)
+         if(mpp_pe() == mpp_root_pe()) then
+            print *,'tracer ', trim(tracer_attributes(ntr)%name), ' read in from initial_conditions.nc'
          endif
+!         if (.not.file_exist('INPUT/initial_conditions.nc')) then
+!            call error_mesg('spectral_initialize_fields','Could not find INPUT/initial_conditions.nc!',FATAL)
+!         endif
+!         
+!         ! open up the netcdf file`
+!         ncid = ncopn('INPUT/initial_conditions.nc',NCNOWRIT,err)
+!         ! This array tells us the size of input variables.
+!         counts(1) = size(grid_tracers,1)
+!         counts(2) = size(grid_tracers,2)
+!         counts(3) = size(grid_tracers,3)
+!         ! Allocate space to put the initial condition information, temporarily.
+!         allocate(lmptmp(counts(1),counts(2),counts(3)))          
+!         
+!         ! load sphum, if it has been specified.  Otherwise write error and break.
+!         vid = ncvid(ncid,'sphum',err)
+!         if(err == 0) then
+!            call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
+!            grid_tracers(:,:,:,1,ntr) = lmptmp
+!            grid_tracers(:,:,:,2,ntr) = lmptmp
+!            if(mpp_pe() == mpp_root_pe()) then
+!               print *,'tracer ', trim(tracer_attributes(ntr)%name), ' read in from initial_conditions.nc'
+!            endif
+!         else
+!            call error_mesg('read_restart_or_do_coldstart','Could not find '//trim(tracer_attributes(ntr)%name)// &
+!                'in initial_conditions.nc',FATAL)
+!         endif
       else 
          grid_tracers(:,:,:,:,ntr) = initial_sphum
       endif
