@@ -603,6 +603,32 @@ else
          if(mpp_pe() == mpp_root_pe()) then
             print *,'tracer ', trim(tracer_attributes(ntr)%name), ' read in from initial_conditions.nc'
          endif
+!         if (.not.file_exist('INPUT/initial_conditions.nc')) then
+!            call error_mesg('spectral_initialize_fields','Could not find INPUT/initial_conditions.nc!',FATAL)
+!         endif
+!         
+!         ! open up the netcdf file`
+!         ncid = ncopn('INPUT/initial_conditions.nc',NCNOWRIT,err)
+!         ! This array tells us the size of input variables.
+!         counts(1) = size(grid_tracers,1)
+!         counts(2) = size(grid_tracers,2)
+!         counts(3) = size(grid_tracers,3)
+!         ! Allocate space to put the initial condition information, temporarily.
+!         allocate(lmptmp(counts(1),counts(2),counts(3)))          
+!         
+!         ! load sphum, if it has been specified.  Otherwise write error and break.
+!         vid = ncvid(ncid,'sphum',err)
+!         if(err == 0) then
+!            call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
+!            grid_tracers(:,:,:,1,ntr) = lmptmp
+!            grid_tracers(:,:,:,2,ntr) = lmptmp
+!            if(mpp_pe() == mpp_root_pe()) then
+!               print *,'tracer ', trim(tracer_attributes(ntr)%name), ' read in from initial_conditions.nc'
+!            endif
+!         else
+!            call error_mesg('read_restart_or_do_coldstart','Could not find '//trim(tracer_attributes(ntr)%name)// &
+!                'in initial_conditions.nc',FATAL)
+!         endif
       else 
          grid_tracers(:,:,:,:,ntr) = initial_sphum
       endif
