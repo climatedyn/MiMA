@@ -129,61 +129,21 @@ if (choice_of_init == 3) then !initialize with prescribed input
    print*,'INITIALISING INTERPOLATOR'
    call interpolator_init(init_conds, trim(initial_file)//'.nc', lonb, latb, data_out_of_bounds=(/CONSTANT/))
    ! we will need all of these just to get p_half.
-   print*,'ALLOCATING PFULL'
    allocate(p_full(size(psg,1), size(psg,2), num_levels))
-   print*,'ALLOCATING LNPFULL'
    allocate(ln_p_full(size(psg,1), size(psg,2), num_levels))
-   print*,'ALLOCATING PHALF'
    allocate(p_half(size(psg,1), size(psg,2), num_levels+1))
-   print*,'ALLOCATING LNPHALF'
    allocate(ln_p_half(size(psg,1), size(psg,2), num_levels+1))
    ! then read psg from file
-   call interpolator(init_conds, Time, psg, 'ps')
+   call interpolator(init_conds, Time, psg, 'ps', is, js)
    ln_psg = log(psg(:,:))
    ! use psg to compute p_half
    call pressure_variables(p_half, ln_p_half, p_full, ln_p_full, psg)
    ! forget about all other pressure variables which we don't need
    deallocate(ln_p_half,p_full,ln_p_full)
    ! interpolate onto full 3D field
-   call interpolator(init_conds, Time, p_half, ug, 'ucomp')
-   call interpolator(init_conds, Time, p_half, vg, 'vcomp')
-   call interpolator(init_conds, Time, p_half, tg, 'temp')
-!   if (.not.file_exist('INPUT/initial_conditions.nc')) then
-!      call error_mesg('spectral_initialize_fields','Could not find INPUT/initial_conditions.nc!',FATAL)
-!   end if
-!
-!   ! first, open up the netcdf file
-!   ncid = ncopn('INPUT/initial_conditions.nc',NCNOWRIT,err)
-!   ! This array tells us the size of input variables.
-!   counts(1) = size(ug,1)
-!   counts(2) = size(ug,2)
-!   counts(3) = size(ug,3)
-!   ! Allocate space to put the initial condition information, temporarily.
-!   allocate(lmptmp(counts(1),counts(2),counts(3)))
-!   
-!   ! load the zonal wind initial conditions
-!   vid = ncvid(ncid,'ucomp',err)
-!   call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
-!   ug(:,:,:) = lmptmp
-! 
-!   ! load the meridional wind
-!   vid = ncvid(ncid,'vcomp',err)
-!   call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
-!   vg(:,:,:) = lmptmp
-! 
-!   ! load temperature
-!   vid = ncvid(ncid,'temp',err)
-!   call ncvgt(ncid,vid,(/is,js,1/),counts,lmptmp,err)
-!   tg(:,:,:) = lmptmp
-!
-!   ! load surface pressure
-!   vid = ncvid(ncid,'ps',err)
-!   call ncvgt(ncid,vid,(/is,js/),counts(1:2),lmptmp(:,:,1),err)
-!   psg(:,:) = lmptmp(:,:,1)
-!   ln_psg = log(psg(:,:))
-! 
-!   ! close up the input netcdf file.
-!   call ncclos(ncid,err)
+   call interpolator(init_conds, Time, p_half, ug, 'ucomp', is, js)
+   call interpolator(init_conds, Time, p_half, vg, 'vcomp', is, js)
+   call interpolator(init_conds, Time, p_half, tg, 'temp', is, js)
  
    ! and lastly, let us know that it worked!
    if(mpp_pe() == mpp_root_pe()) then
