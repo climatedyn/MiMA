@@ -126,7 +126,6 @@ endif
 
 ! mj initial conditions: use of interpolator capabilities, from a file with name INPUT/$(initial_file).nc
 if (choice_of_init == 3) then !initialize with prescribed input
-   print*,'INITIALISING INTERPOLATOR'
    call interpolator_init(init_conds, trim(initial_file)//'.nc', lonb, latb, data_out_of_bounds=(/CONSTANT/))
    ! we will need all of these just to get p_half.
    allocate(p_full(size(psg,1), size(psg,2), num_levels))
@@ -138,6 +137,7 @@ if (choice_of_init == 3) then !initialize with prescribed input
    ln_psg = log(psg(:,:))
    ! use psg to compute p_half
    call pressure_variables(p_half, ln_p_half, p_full, ln_p_full, psg)
+   if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a,f6.1,a)') 'model top at ',minval(p_full),'Pa.'
    ! forget about all other pressure variables which we don't need
    deallocate(ln_p_half,p_full,ln_p_full)
    ! interpolate onto full 3D field
