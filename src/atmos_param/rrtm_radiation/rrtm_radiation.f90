@@ -124,10 +124,14 @@
         logical            :: do_read_ozone=.false.           ! read ozone from an external file?
                                                               !  this is the only way to get ozone into the model
         character(len=256) :: ozone_file='ozone'              !  file name of ozone file to read
+        character(len=256) :: ozone_name='none'               !   variable name in ozone file. defaults
+                                                              !     to ozone_file if 'none'
         real(kind=rb)      :: scale_ozone = 1.0               ! scale the ozone values in the file by this factor
         real(kind=rb)      :: o3_val = 0.0                    ! if do_read_ozone = .false., give ozone this constant value
         logical            :: do_read_h2o=.false.             ! read water vapor from an external file?
         character(len=256) :: h2o_file='h2o'                  !  file name of h2o file to read
+        character(len=256) :: h2o_name='none'                   !  variable name in h2o file. defaults
+                                                              !   to h2o_file if 'none'
 ! secondary gases (CH4,N2O,O2,CFC11,CFC12,CFC22,CCL4)
         logical            :: include_secondary_gases=.false. ! non-zero values for above listed secondary gases?
         real(kind=rb)      :: ch4_val  = 0.                   !  if .true., value for CH4
@@ -185,8 +189,8 @@
 !---------------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------------
 
-        namelist/rrtm_radiation_nml/ include_secondary_gases, do_read_ozone, ozone_file, scale_ozone, o3_val, &
-             &do_read_h2o, h2o_file, ch4_val, n2o_val, o2_val, cfc11_val, cfc12_val, cfc22_val, ccl4_val, &
+        namelist/rrtm_radiation_nml/ include_secondary_gases, do_read_ozone, ozone_file, ozone_name, scale_ozone, o3_val, &
+             &do_read_h2o, h2o_file, h2o_name, ch4_val, n2o_val, o2_val, cfc11_val, cfc12_val, cfc22_val, ccl4_val, &
              &do_read_radiation, radiation_file, rad_missing_value, &
              &do_read_sw_flux, sw_flux_file, do_read_lw_flux, lw_flux_file,&
              &h2o_lower_limit,temp_lower_limit,temp_upper_limit,co2ppmv, &
@@ -311,7 +315,8 @@
 !                  ' dt_rad > dt_atmos, but store_intermediate_rad=.false. might cause time steps with zero radiative forcing!', &
 !                  WARNING)
 !          endif
-
+          if(trim(ozone_name) .eq. 'none') ozone_name = ozone_file
+          if(trim(h2o_name) .eq. 'none') h2o_name = h2o_file
           if(do_read_radiation .and. do_read_sw_flux .and. do_read_lw_flux) then
              if(do_read_ozone) call error_mesg( 'rrtm_gases_init', &
                   'SETTING DO_READ_OZONE TO FALSE AS DO_READ_RADIATION AND DO_READ_?W_FLUX ARE .TRUE.', NOTE)
@@ -599,7 +604,7 @@
 
           !get ozone
           if(do_read_ozone)then
-             call interpolator( o3_interp, Time_loc, p_half, o3f, trim(ozone_file))
+             call interpolator( o3_interp, Time_loc, p_half, o3f, ozone_name )
              o3f = o3f*scale_ozone
              !due to interpolation, some values might be negative
              o3f = max(0.0,o3f)
@@ -630,7 +635,7 @@
           !! water vapor stuff
           ! read water vapor
           if(do_read_h2o)then
-             call interpolator( h2o_interp, Time_loc, p_half, q_tmp, trim(h2o_file))
+             call interpolator( h2o_interp, Time_loc, p_half, q_tmp, h2o_name)
              ! some values might be negative due to interpolation
              q_tmp = max(0.0,q_tmp)
           endif
