@@ -83,7 +83,6 @@ def DefCompress(x,varName=None):
             '_FillValue': fillVal}
     return encodeDict
     
-
 new_names = {
     'longitude':'lon',
     'latitude' :'lat',
