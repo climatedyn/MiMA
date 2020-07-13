@@ -263,13 +263,8 @@ pi = 4.0*atan(1.)
      rough_mom   = const_roughness
      rough_heat  = const_roughness
      rough_moist = const_roughness
-<<<<<<< HEAD
      if( allocated(land_sea_mask) )then
          where ( .NOT. land_sea_mask  ) rough_mom   = const_roughness * mom_roughness_land
-=======
-     if(trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then
-         where ( .NOT. lmask_navy  ) rough_mom   = const_roughness * mom_roughness_land
->>>>>>> 4cb9f35 (combination of do_read_sst = .true. and roughness_choice == 4 is now possible)
 	    
 	  do j = 1, size(Atm%t_bot,2)
       		 lat = 0.5*(Atm%lat_bnd(j+1) + Atm%lat_bnd(j))*180./pi		 
