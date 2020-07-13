@@ -111,9 +111,10 @@ logical :: do_oflx          = .false.
 logical :: do_oflxmerid     = .false.
 logical :: do_qflux         = .false. !mj
 logical :: do_warmpool      = .false. !mj
-logical :: do_read_sst      = .false. !mj
-logical :: do_sc_sst        = .false. !mj
+logical :: do_read_init_sst = .false. !mj
+logical :: do_external_sst  = .false. !mj
 character(len=256) :: sst_file
+character(len=256) :: sst_name 
 character(len=256) :: land_option = 'none'
 character(len=256) :: land_sea_mask_file = 'lmask'
 real,dimension(10) :: slandlon=0,slandlat=0,elandlon=-1,elandlat=-1
@@ -130,7 +131,7 @@ namelist /simple_surface_nml/ z_ref_heat, z_ref_mom,             &
 			      do_oflxmerid, maxofmerid, latmaxofmerid, Tm, &
 			      deltaT,  mom_roughness_land,  q_roughness_land,     &  !cig
                               do_qflux,do_warmpool,              &  !mj
-                              do_read_sst,do_sc_sst,sst_file,    &  !mj
+                              do_read_init_sst,do_external_sst,sst_file,sst_name,    &  !mj
                               land_option,slandlon,slandlat,     &  !mj
                               elandlon,elandlat,                 &
                               albedo_exp,albedo_cntrSH,albedo_cntrNH,albedo_wdth,albedo_desert     !mj
@@ -483,8 +484,8 @@ real, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
    dedt_surf  =  dedt_surf     + dedq_atm * e_q_n
 
    if(surface_choice == 1) then
-      if(do_sc_sst) then !mj sst read from input file
-         call interpolator( sst_interp, Time, sst_new, trim(sst_file) )
+      if(do_external_sst) then !mj sst read from input file
+         call interpolator( sst_interp, Time, sst_new, sst_name )
          dt_t_surf = sst_new - sst
         
       else 
@@ -607,9 +608,9 @@ real, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
    endif
   
 !mj make choices compatible
-   !if(do_read_sst .or. do_sc_sst) call error_mesg ('simple_surface',  &
-   !              'THERE IS A BUG WITH DO_READ_SST, SO I AM STOPPING', FATAL)
-   if(do_sc_sst) do_read_sst = .true.
+   !if(do_read_init_sst .or. do_external_sst) call error_mesg ('simple_surface',  &
+   !              'THERE IS A BUG WITH DO_READ_INIT_SST, SO I AM STOPPING', FATAL)
+   if(do_external_sst) do_read_init_sst = .true.
    if(trop_capacity .le. 0.) trop_capacity = heat_capacity
    if(land_capacity .le. 0.) land_capacity = heat_capacity
 
@@ -629,11 +630,11 @@ allocate(flux_v(size(Atm%t_bot,1),size(Atm%t_bot,2)))
 allocate(flux_o(size(Atm%t_bot,1),size(Atm%t_bot,2)))
 
 !mj read fixed SSTs
-if( do_read_sst ) then
+if( do_read_init_sst ) then
    call interpolator_init( sst_interp, trim(sst_file)//'.nc',Atm%lon_bnd,Atm%lat_bnd, data_out_of_bounds=(/CONSTANT/) )
 endif
 
-!mj we need lmask_navy for roughness even if surface_choice .eq. 1 or do_sc_sst is .true.
+!mj we need lmask_navy for roughness even if surface_choice .eq. 1 or do_external_sst is .true.
 if (trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then 
    allocate(lmask_navy(size(Atm%t_bot,1),size(Atm%t_bot,2)))
    ocean_mask_worked = get_ocean_mask(Atm%lon_bnd,Atm%lat_bnd,lmask_navy)
@@ -644,7 +645,7 @@ if (trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmask
 endif
 
 
-if (surface_choice .eq. 1 .and. .not. do_sc_sst)then
+if (surface_choice .eq. 1 .and. .not. do_external_sst)then
     allocate(land_sea_heat_capacity(size(Atm%t_bot,1), size(Atm%t_bot,2)))
     land_sea_heat_capacity = heat_capacity
    !mj ocean depth function of latitude
@@ -738,8 +739,8 @@ else if(file_exist('INPUT/simple_surface.res')) then
 
   call close_file(unit)
 !mj read fixed SSTs
-else if( do_read_sst ) then
-   call interpolator( sst_interp, Time, sst, trim(sst_file) )
+else if( do_read_init_sst ) then
+   call interpolator( sst_interp, Time, sst, sst_name )
 else
   do j = 1, size(Atm%t_bot,2)
     lat = 0.5*(Atm%lat_bnd(j+1) + Atm%lat_bnd(j))
