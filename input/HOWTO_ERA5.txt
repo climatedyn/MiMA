@@ -1,0 +1,57 @@
+A series of 3 scripts, `download_era5_init_conds.py`, `download_era5_timeseries.py` and `convert_era5_to_input.py`, can be used to download and prepare ERA5 data for MiMA. The first two require a valid CDS Data account as well as a working cdsapi. The last also requires `xarray`.
+
+# Downloading from ERA5
+
+To download ERA5 initial conditions for the atmosphere only, run
+```bash
+python download_era5_init_conds.py YYYY-MM-DD:HH
+```
+To add initial conditions for surface temperature as well, run
+```bash
+python download_era5_init_conds.py YYYY-MM-DD:HH -t
+```
+To save bandwidth and storage, download on coarser grid
+```bash
+python download_era5_init_conds.py YYYY-MM-DD:HH -t -g 2.5 2.5
+```
+
+If one wants to force with daily surface temperature and ozone, run
+```bash
+python download_era5_timeseries.py YYYY-MM-DD YYYY-MM-DD -g 2.5 2.5
+```
+```
+
+# Converting data to initial conditions
+
+Then it is time to convert the downloaded data into MiMA input files. For the pure initial conditions, run
+```bash
+python convert_era5_to_input.py -A download_3d.YYYY-MM-DD_HH00.nc -S download_2d.YYYY-MM-DD_HH00.nc -o initial_conditions_era5.YYYYMMDD.nc
+```
+If in the download step before, t_surf was downloaded as well (`-t`), run
+```bash
+python convert_era5_to_input.py -A download_3d.YYYY-MM-DD_HH00.nc -S download_2d.YYYY-MM-DD_HH00.nc -T download_2d.YYYY-MM-DD_HH00.nc -o initial_conditions_era5.YYYYMMDD.nc --ts-out initial_conditions_era5.tsurf.YYYYMMDD.nc
+```
+This will be sufficient to start from the data. Set `specify_initial_conditions = .true.` and `initial_file = initial_conditions_era5.YYYYMMDD` in `spectral_dynamics_nml`.
+
+If surface temperature was included in initial conditions, set `do_read_init_sst = .true., sst_file = initial_conditions_era5.tsurf.YYYYMMDD.nc` and `sst_name = 'skt'` in `simple_surface_nml`.
+
+
+# Forcing with timeseries of t_surf and ozone
+
+If we have downloaded skin temperature and ozone as well above with `download_era5_timeseries.py`, do this to convert to input files
+```bash
+python convert_era5_to_input.py -T download_2d.nc -O download_3d.nc --ts-out era5_skt.nc --o3-out era5_o3.nc -a
+```
+Then set `do_external_sst = .true.` and `sst_file = 'era5_skt` in `simple_surface_nml` as well as `do_read_ozone = .true., ozone_file = 'era5_o3', ozone_name = 'o3'` in `rrtm_radiation_nml`.
+
+Note that one should also set `calendar = 'julian'` or at least `calendar = 'noleap'` in `coupler_nml` to make sure months have 31 days etc.
+Also, having timeseries as input file can demand a lot of memory!
+
+# Cleanup
+
+To clean up files which are not needed anymore, do
+```bash
+rm download*.nc
+```
+
+
