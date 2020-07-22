@@ -149,7 +149,7 @@ dd = xr.merge(mds)
 ##########################################################
 ftype = 'f4'
 ttype = ftype
-tunit = 'days since 0001-01-01T00:00:00'
+tunit = 'days since 1970-01-01T00:00:00'
 tcal  = 'julian'
 t_enc = {'units':tunit,'calendar':tcal,'dtype':ttype}
 #
@@ -161,6 +161,7 @@ if args.a_out is not None:
     encode_dict['pfull']= {'dtype':ftype}
     if 'time' in mima_init3:
         encode_dict['time'] = t_enc
+        mima_init3.encoding['unlimited_dims'] = ['time']
     mima_init3.to_netcdf(args.a_out,encoding=encode_dict)
     print(args.a_out)
 if args.ts_out is not None:
@@ -170,6 +171,7 @@ if args.ts_out is not None:
     encode_dict = DefCompress(dd,var)
     if 'time' in dd:
         encode_dict['time'] = t_enc
+        dd.encoding['unlimited_dims'] = ['time']
     dd[var].to_netcdf(args.ts_out,encoding=encode_dict)
     print(args.ts_out)
 if args.o3_out is not None:
@@ -178,11 +180,13 @@ if args.o3_out is not None:
         encode_dict['pfull']= {'dtype':ftype}
         if 'time' in da:
             encode_dict['time'] = t_enc
+            da.encoding['unlimited_dims'] = ['time']
         da['o3'].to_netcdf(args.o3_out,encoding=encode_dict)
     else:
         encode_dict = DefCompress(do)
         encode_dict['pfull']= {'dtype':ftype}
         if 'time' in do:
             encode_dict['time'] = t_enc
+            do.encoding['unlimited_dims'] = ['time']
         do.to_netcdf(args.o3_out,encoding=encode_dict)
     print(args.o3_out)
