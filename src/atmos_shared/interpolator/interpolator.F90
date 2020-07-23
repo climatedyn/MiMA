@@ -422,9 +422,16 @@ do i = 1, ndim
           read(fileunits(1:4)  , *)  fileyr
           read(fileunits(6:7)  , *)  filemon
           read(fileunits(9:10) , *)  fileday
-          read(fileunits(12:13), *)  filehr
-          read(fileunits(15:16), *)  filemin
-          read(fileunits(18:19), *)  filesec
+          ! mj make it work for "days since YYYY-MM-DD" and assume HH=MM=SS=0
+          if ( len_trim(fileunits) .ge. 13 ) then
+             read(fileunits(12:13), *)  filehr
+             if ( len_trim(fileunits) .ge. 16 ) then
+                read(fileunits(15:16), *)  filemin
+                if ( len_trim(fileunits) .ge. 19 ) then
+                   read(fileunits(18:19), *)  filesec
+                endif
+             endif
+          endif
         case('mon')
           fileunits = units(14:) !Assuming "months since YYYY-MM-DD HH:MM:SS"
           read(fileunits(1:4)  , *)  fileyr
@@ -495,7 +502,12 @@ do i = 1, ndim
       ntime_in = 1
       if (ntime > 0) then
         allocate(time_in(ntime), clim_type%time_slice(ntime))
-        allocate(clim_type%clim_times(12,ntime/12))
+        !mj the original code allocates with size (12,ntimes/12). This assumes two things
+        ! 1) data is monthly, 2) data is over an integer number of years
+        ! if the data is a timeseries, there is no reason for any of these to be the case.
+        !  a nasty way to get rid of the problem is to allocate too large, which at least gets rid
+        !   of an malloc() error later when we try to write outside the size of clim_times
+        allocate(clim_type%clim_times(12,ceiling(ntime/12.)))
         time_in = 0.0
         clim_type%time_slice = set_time(0,0) + base_time
         clim_type%clim_times = set_time(0,0) + base_time
@@ -521,7 +533,7 @@ do i = 1, ndim
 
         do n = 1, ntime
 !Assume that the times in the data file correspond to days only.
-            
+
 
           if (fileyr == 0) then
 !! RSH NOTE:
@@ -601,7 +613,8 @@ do i = 1, ndim
 !---------------------------------------------------------------------
             endif
           endif
-          
+          !mj m = year, m1 = month, assuming monthly data
+          ! if it's daily data, this doesn't make sense
           m = (n-1)/12 +1 ; m1 = n- (m-1)*12
           clim_type%clim_times(m1,m) = clim_type%time_slice(n)
         enddo
@@ -615,7 +628,6 @@ do i = 1, ndim
       deallocate(time_in)
   end select ! case(name)
 enddo
-
 
 ! -------------------------------------------------------------------
 ! For 2-D fields, allocate levs and halflevs here
@@ -689,13 +701,13 @@ endif
  call horiz_interp_init(clim_type%interph, &
                         clim_type%lonb, clim_type%latb, &
                         lonb_mod, latb_mod)
-
+ 
 !--------------------------------------------------------------------
 !  allocate the variable clim_type%data . This will be the climatology 
 !  data horizontally interpolated, so it will be on the model horizontal
 !  grid, but it will still be on the climatology vertical grid.
-!--------------------------------------------------------------------
-
+ !--------------------------------------------------------------------
+ 
 select case(ntime)
  case (13:)
 ! This may  be data that does not have a continous time-line
@@ -707,7 +719,7 @@ select case(ntime)
 !RSH        ( clim_type%time_slice(2) - clim_type%time_slice(1) )
 
 !RSHif ( last_time < clim_type%time_slice(ntime)) then
-
+    
  if (non_monthly) then
 ! We have a broken time-line. e.g. We have monthly data but only for years ending in 0. 1960,1970 etc.
 !   allocate(clim_type%data(size(lonb_mod(:))-1, size(latb_mod(:))-1, nlev, 2, num_fields))
@@ -1991,7 +2003,9 @@ deallocate(clim_type%lonb)
 deallocate(clim_type%levs)
 deallocate(clim_type%halflevs) 
 call horiz_interp_end(clim_type%interph)
-deallocate(clim_type%time_slice)
+if (associated (clim_type%time_slice)) then
+   deallocate(clim_type%time_slice)
+endif
 deallocate(clim_type%field_type)
 deallocate(clim_type%field_name)
 deallocate(clim_type%time_init)
@@ -2006,11 +2020,11 @@ if (associated (clim_type%pmon_pyear)) then
   deallocate(clim_type%nmon_pyear)
 endif
 
-!! RSH mod   
-if(  .not. (clim_type%TIME_FLAG .eq. LINEAR  .and.    &
-!     read_all_on_init)) .or. clim_type%TIME_FLAG .eq. BILINEAR  ) then
-      read_all_on_init)  ) then
- call mpp_close(clim_type%unit)
+!! RSH mod   !! mj as per ISCA from sit
+if(  .not. ((clim_type%TIME_FLAG .eq. LINEAR  .and.    &
+     read_all_on_init) .or. (clim_type%TIME_FLAG .eq. BILINEAR) &
+     .or. (clim_type%TIME_FLAG .eq. NONE)) ) then
+  call mpp_close(clim_type%unit)
 endif
 
 
