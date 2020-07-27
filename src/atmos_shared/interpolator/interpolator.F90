@@ -353,8 +353,8 @@ do i = 1, ndim
       allocate(clim_type%levs(nlev))
       call mpp_get_axis_data(axes(i),clim_type%levs)
       clim_type%level_type = PRESSURE
-  ! Convert to Pa !mj added "millibar" 
-      if( chomp(units) == "mb" .or. chomp(units) == "millibar" .or. chomp(units) == "hPa") then
+  ! Convert to Pa !mj added "millibars" 
+      if( chomp(units) == "mb" .or. chomp(units) == "millibars" .or. chomp(units) == "hPa") then
          clim_type%levs = clim_type%levs * 100.
       end if
 ! define the direction of the vertical data axis
