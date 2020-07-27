@@ -130,7 +130,9 @@ real,              pointer :: nmon_pyear(:,:,:,:) =>NULL()
 !integer                    :: indexm, indexp, climatology
 integer,dimension(:),  pointer :: indexm =>NULL() 
 integer,dimension(:),  pointer :: indexp =>NULL()
-integer,dimension(:),  pointer :: climatology =>NULL() 
+integer,dimension(:),  pointer :: climatology =>NULL()
+! mj
+logical :: IS_CLIMATOLOGY ! store info on whether data is climatology or timeseries
 
 type(time_type), pointer :: clim_times(:,:) => NULL()
 end type interpolate_type
@@ -351,8 +353,8 @@ do i = 1, ndim
       allocate(clim_type%levs(nlev))
       call mpp_get_axis_data(axes(i),clim_type%levs)
       clim_type%level_type = PRESSURE
-  ! Convert to Pa
-      if( chomp(units) == "mb" .or. chomp(units) == "hPa") then
+  ! Convert to Pa !mj added "millibar" 
+      if( chomp(units) == "mb" .or. chomp(units) == "millibar" .or. chomp(units) == "hPa") then
          clim_type%levs = clim_type%levs * 100.
       end if
 ! define the direction of the vertical data axis
@@ -446,7 +448,7 @@ do i = 1, ndim
 
 
       if (fileyr /= 0) then
-
+         clim_type%IS_CLIMATOLOGY = .false.
 !----------------------------------------------------------------------
 !    if file date has a non-zero year in the base time, determine that
 !    base_time based on the netcdf info.
@@ -495,6 +497,10 @@ do i = 1, ndim
 !! time_interp_list, with the optional argument modtime=YEAR. base_time
 !! is set to an arbitrary value here; it's only use will be as a 
 !! timestamp for optionally generated diagnostics.
+!  mj this is not true - what the original code does is check if ntimes <= 1
+!  which is not satisfactory for daily climatology.
+!   thus the need for the IS_CLIMATOLOGY flag
+        clim_type%IS_CLIMATOLOGY = .true.
 
         base_time = get_base_time ()
       endif
@@ -1118,7 +1124,8 @@ end do
       taum = 1
       taup = 1
       tweight = 1
-    elseif(size(clim_type%time_slice(:)).le. 12 ) then
+! mj    elseif(size(clim_type%time_slice(:)).le. 12 ) then
+   elseif( clim_type%IS_CLIMATOLOGY ) then
        call time_interp(Time, clim_type%time_slice, tweight, taum, taup, modtime=YEAR )
     else
        call time_interp(Time, clim_type%time_slice, tweight, taum, taup )
@@ -1503,7 +1510,8 @@ do i= 1,size(clim_type%field_name(:))
       taum = 1
       taup = 1
       tweight = 1
-    elseif(size(clim_type%time_slice(:)).le. 12 ) then
+      !mj    elseif(size(clim_type%time_slice(:)).le. 12 ) then
+    elseif( clim_type%IS_CLIMATOLOGY ) then
        call time_interp(Time, clim_type%time_slice, tweight, taum, taup, modtime=YEAR )
     else
        call time_interp(Time, clim_type%time_slice, tweight, taum, taup )
@@ -1867,7 +1875,8 @@ do i= 1,size(clim_type%field_name(:))
       taum = 1
       taup = 1
       tweight = 1
-   elseif(size(clim_type%time_slice(:)).le. 12 ) then
+      !mj   elseif(size(clim_type%time_slice(:)).le. 12 ) then
+   elseif( clim_type%IS_CLIMATOLOGY ) then
       call time_interp(Time, clim_type%time_slice, tweight, taum, taup, modtime=YEAR )
    else
       call time_interp(Time, clim_type%time_slice, tweight, taum, taup )
