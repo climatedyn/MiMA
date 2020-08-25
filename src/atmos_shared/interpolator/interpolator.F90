@@ -304,7 +304,7 @@ do i = 1, ndim
   ! is another way of saying "thirty_day_months"
   if ( trim(file_calendar) .eq. '360' ) file_calendar = 'thirty_day_months'
   select case(name)
-    case('lat')
+    case('lat','latitude')
       nlat=len
       allocate(clim_type%lat(nlat))
       call mpp_get_axis_data(axes(i),clim_type%lat)
@@ -315,7 +315,7 @@ do i = 1, ndim
         case default  
           call mpp_error(FATAL, "interpolator_init : Units for lat not recognised in file "//file_name)
       end select
-    case('lon')
+    case('lon','longitude')
       nlon=len
       allocate(clim_type%lon(nlon))
       call mpp_get_axis_data(axes(i),clim_type%lon)
@@ -348,7 +348,7 @@ do i = 1, ndim
         case default  
           call mpp_error(FATAL, "interpolator_init : Units for lonb not recognised in file "//file_name)
       end select
-    case('pfull')
+    case('pfull','level')
       nlev=len
       allocate(clim_type%levs(nlev))
       call mpp_get_axis_data(axes(i),clim_type%levs)
