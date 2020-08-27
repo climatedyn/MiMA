@@ -255,7 +255,7 @@ pi = 4.0*atan(1.)
      rough_heat  = const_roughness
      rough_moist = const_roughness
        
-     if( allocated(land_sea_mask) )then 	
+     if( allocated(land_sea_mask) )then 
          where ( .NOT. land_sea_mask  ) rough_mom   = const_roughness * mom_roughness_land
 	 where ( .NOT. land_sea_mask  ) rough_moist   = const_roughness * q_roughness_land	 
      endif
