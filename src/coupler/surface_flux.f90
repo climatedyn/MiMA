@@ -340,7 +340,6 @@ subroutine surface_flux_1d (                                           &
 !  slm Mar 28 2002 -- remove agument drag_q since it is just cd_q*wind
 ! ============================================================================
   ! ---- arguments -----------------------------------------------------------
-  logical, intent(in), dimension(:) :: land,  seawater, avail, flux_q_mask
   real, intent(in),  dimension(:) :: &
        t_atm,     q_atm_in,   u_atm,     v_atm,              &
        p_atm,     z_atm,      t_ca,                          &
