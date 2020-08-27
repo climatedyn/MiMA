@@ -274,7 +274,7 @@ namelist /surface_flux_nml/ no_neg_q,         &
                             no_surface_moisture_flux, &
                             no_surface_heat_flux, &
                             no_surface_radiative_flux, &
-                            scale_land_evap    
+                            scale_land_evap
 contains
 
 
