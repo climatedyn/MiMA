@@ -258,6 +258,7 @@ logical :: no_surface_momentum_flux  = .false. !epg: option to turn off surface 
 logical :: no_surface_moisture_flux  = .false. !epg: option to turn off surface moisture fluxes
 logical :: no_surface_heat_flux      = .false. !epg: option to turn off surface heat fluxes
 logical :: no_surface_radiative_flux = .false. !epg: option to turn off surface radiative fluxes
+real    :: scale_land_evap  = 1.0              !mj: articifially scale moisture fluxes over land
 
 
 namelist /surface_flux_nml/ no_neg_q,         &
@@ -272,9 +273,8 @@ namelist /surface_flux_nml/ no_neg_q,         &
                             no_surface_momentum_flux, &   
                             no_surface_moisture_flux, &
                             no_surface_heat_flux, &
-                            no_surface_radiative_flux 
-
-
+                            no_surface_radiative_flux, &
+                            scale_land_evap    
 contains
 
 
@@ -477,6 +477,9 @@ subroutine surface_flux_1d (                                           &
                              seawater, cd_m, cd_t, cd_q, u_star, b_star     )
   end if
 
+  where(land)
+     cd_q = scale_land_evap * cd_q
+  endwhere
   where (avail)
      ! scale momentum drag coefficient on orographic roughness
      cd_m = cd_m*(log(z_atm/rough_mom+1)/log(z_atm/rough_scale+1))**2
@@ -500,9 +503,9 @@ subroutine surface_flux_1d (                                           &
      ! evaporation
      rho_drag  =  drag_q * rho
      flux_q    =  rho_drag * (q_surf0 - q_atm) ! flux of water vapor  (Kg/(m**2 s))
-     where(flux_q < 0.0) !added by CIG on May 31 2018; never should have negative evaporation
-	flux_q = 0.0
-     endwhere
+!mj     where(flux_q < 0.0) !added by CIG on May 31 2018; never should have negative evaporation
+!mj	flux_q = 0.0
+!mj     endwhere
 
      where (land)
         dedq_surf = rho_drag

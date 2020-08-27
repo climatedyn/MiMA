@@ -183,10 +183,10 @@ real, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
        q_star, q_surf, cd_q, cd_t, cd_m, wind, dtaudu_atm
 
 logical, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
-       mask, glacier, seawater
+       mask, glacier, seawater, avail
 
 logical :: used
- logical :: ocean_mask_worked
+logical :: ocean_mask_worked
 
 integer :: j, i
 real :: lat, pi, lon
@@ -224,7 +224,18 @@ pi = 4.0*atan(1.)
    water      = 1.0
    max_water  = 1.0
 
-   mask    = .true.
+   !mj mask is used in surface_flux to distinguish between land and sea
+   !mj seawater is used in surface_flux to account for salinity in saturation pressure
+   !mj glacier is currently not used - potentially useful to zero-out surface fluxes under
+   !mj  ice, such as on Antarctica
+   avail = .true.
+   if ( allocated(lmask_navy) ) then
+      mask = lmask_navy
+   elseif ( allocated(land_sea_mask) ) then
+      mask = land_sea_mask
+   else ! by default, treat all as water
+      mask    = .true.
+   endif
    glacier = .false.
    seawater= .false.
 
@@ -392,7 +403,7 @@ endif
                       dtaudv_atm, dt,                                    & ! Required argument, intent(in). Looks like it should be .false. everywhere.
                       .not.mask,                                         &
                       seawater,                                          & ! Required argument, intent(in). Looks like fudgefactor for salt water. Use .false.
-                      mask )                                               ! Required argument, intent(in). Looks like it should be .true. everywhere.
+                      avail )                                               ! Required argument, intent(in). Looks like it should be .true. everywhere.
 
 ! intent(out):: flux_t, flux_q, flux_lw, flux_u, flux_v, cd_m, cd_t, cd_q, wind, u_star, b_star, q_star,
 ! intent(out):: dhdt_surf, dedt_surf, dedq_surf, drdt_surf, dhdt_atm, dedq_atm, dtaudu_atm, dtaudv_atm
