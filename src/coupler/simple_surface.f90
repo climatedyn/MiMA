@@ -338,7 +338,6 @@ pi = 4.0*atan(1.)
         albedo(:,j) = const_albedo + &	
 	     (higher_albedo-const_albedo)*0.5*(1+tanh((lat-albedo_cntrNH)/albedo_wdth)) + &
 	     (higher_albedo-const_albedo)*0.5*(1-tanh((lat+albedo_cntrSH)/albedo_wdth))
-
      enddo
 !mj add symmetric higher albedo - sin2 increase from equator to pole
    elseif(albedo_choice .eq. 6) then
@@ -710,15 +709,6 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
    else if(trim(land_option) .eq. 'zsurf')then
         allocate(zsurf(size(Atm%t_bot,1), size(Atm%t_bot,2)))
         call get_surf_geopotential(zsurf)
-        land_sea_mask = .true.
-        where ( zsurf > zsurf_cap_limit )
-           land_sea_mask = .false.
-           land_sea_heat_capacity = land_capacity
-        endwhere
-       ! mj land heat capacity given in inputfile  
-! mj land heat capacity given through ?landlon, ?landlat
-     else if(trim(land_option) .eq. 'lonlat')then
-        land_sea_mask = .true.
         do j=1,size(Atm%t_bot,2)
            lat = 0.5*180/pi*( Atm%lat_bnd(j+1) + Atm%lat_bnd(j) )
            do i=1,size(Atm%t_bot,1)
@@ -991,7 +981,6 @@ if ( do_local_heating ) then
    do j=1,ngauss
       if ( hamp(j) .ne. 0. .and. pcenter(j) .lt. 0. ) then
          do_surface_heating = .true.
-         !print*,'PERFORMING SURFACE HEATING'
       endif
    enddo
 endif

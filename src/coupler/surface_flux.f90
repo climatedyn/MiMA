@@ -478,7 +478,7 @@ subroutine surface_flux_1d (                                           &
                              seawater, cd_m, cd_t, cd_q, u_star, b_star     )
   end if
 
-  where(flux_q_mask .and. (q_surf0 - q_atm) .gt. 0.0 ) !mj rescale evaporation only, not condensation
+  where(flux_q_mask .and. (q_surf0 - q_atm) .gt. 0.0 )
      cd_q = scale_land_evap * cd_q
   endwhere
   where (avail)
@@ -590,11 +590,6 @@ subroutine surface_flux_0d (                                                 &
      w_atm_0,     u_star_0,     b_star_0,     q_star_0,                      &
      dhdt_surf_0, dedt_surf_0,  dedq_surf_0,  drdt_surf_0,                   &
      dhdt_atm_0,  dedq_atm_0,   dtaudu_atm_0, dtaudv_atm_0,                  &
-     dt,          land_0,       seawater_0,  avail_0,                        & !mj scale flux_q
-     flux_q_mask_0 )
-
-  ! ---- arguments -----------------------------------------------------------
-  logical, intent(in) :: land_0,  seawater_0, avail_0, flux_q_mask_0
   real, intent(in) ::                                                  &
        t_atm_0,     q_atm_0,      u_atm_0,     v_atm_0,                &
        p_atm_0,     z_atm_0,      t_ca_0,                              &
