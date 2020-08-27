@@ -253,7 +253,7 @@ pi = 4.0*atan(1.)
      rough_heat  = const_roughness
      rough_moist = const_roughness
        
-     if(trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then 	
+     if( allocated(land_sea_mask) )then 	
          where ( .NOT. land_sea_mask  ) rough_mom   = const_roughness * mom_roughness_land
 	 where ( .NOT. land_sea_mask  ) rough_moist   = const_roughness * q_roughness_land	 
      endif
@@ -646,9 +646,13 @@ if( do_read_init_sst ) then
    call interpolator_init( sst_interp, trim(sst_file)//'.nc',Atm%lon_bnd,Atm%lat_bnd, data_out_of_bounds=(/CONSTANT/) )
 endif
 
+!mj do we need a land-sea mask?
+if (trim(land_option) .ne. 'none') then
+   allocate(land_sea_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
+endif
+
 !mj we need land-sea mask for roughness even if surface_choice .eq. 1 or do_external_sst is .true.
 if (trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then 
-   allocate(land_sea_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
    ocean_mask_worked = get_ocean_mask(Atm%lon_bnd,Atm%lat_bnd,land_sea_mask)
    if(.not.ocean_mask_worked) then
       call error_mesg('get_ocean_mask','land_option="'//trim(land_option)//'"'// &
@@ -682,7 +686,6 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
    
 
      if( trim(land_option) .eq. 'input' ) then
-        allocate(land_sea_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
         ! read_data cannot deal with booleans, so need to pass via a real first
         allocate(land_sea_mask_r(size(Atm%t_bot,1),size(Atm%t_bot,2)))
         if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') 'Reading land-sea mask from file INPUT/'//trim(land_sea_mask_file)//'.nc'
@@ -699,10 +702,15 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
    else if(trim(land_option) .eq. 'zsurf')then
         allocate(zsurf(size(Atm%t_bot,1), size(Atm%t_bot,2)))
         call get_surf_geopotential(zsurf)
-        where ( zsurf > zsurf_cap_limit ) land_sea_heat_capacity = land_capacity
+        land_sea_mask = .true.
+        where ( zsurf > zsurf_cap_limit )
+           land_sea_mask = .false.
+           land_sea_heat_capacity = land_capacity
+        endwhere
        ! mj land heat capacity given in inputfile  
 ! mj land heat capacity given through ?landlon, ?landlat
      else if(trim(land_option) .eq. 'lonlat')then
+        land_sea_mask = .true.
         do j=1,size(Atm%t_bot,2)
            lat = 0.5*180/pi*( Atm%lat_bnd(j+1) + Atm%lat_bnd(j) )
            do i=1,size(Atm%t_bot,1)
@@ -710,6 +718,7 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
               do k=1,size(slandlat)
                  if ( lon >= slandlon(k) .and. lon <= elandlon(k) &
                       &.and. lat >= slandlat(k) .and. lat <= elandlat(k) )then
+                    land_sea_mask(i,j) = .false.
                     land_sea_heat_capacity(i,j) = land_capacity
                  endif
               enddo
