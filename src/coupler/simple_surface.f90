@@ -152,8 +152,10 @@ namelist /simple_surface_nml/ z_ref_heat, z_ref_mom,             &
 ! mj know about topography
   real, allocatable, dimension(:,:) :: zsurf,land_sea_heat_capacity
 !mj read sst and land sea mask from input file
-  real, allocatable, dimension(:,:) :: land_sea_mask
-  logical,allocatable,dimension(:,:):: lmask_navy
+!mj  has to be real, with 1.0 = ocean, 0.0 = land
+!mj  but can also use navy_pcwater of course 
+  real,allocatable,dimension(:,:):: land_sea_mask_r
+  logical,allocatable,dimension(:,:):: land_sea_mask
   type(interpolate_type),save :: sst_interp, lmask_interp
 
 
@@ -226,12 +228,11 @@ pi = 4.0*atan(1.)
 
    !mj mask is used in surface_flux to distinguish between land and sea
    !mj seawater is used in surface_flux to account for salinity in saturation pressure
-   !mj glacier is currently not used - potentially useful to zero-out surface fluxes under
-   !mj  ice, such as on Antarctica
+   !mj  this probably doesn't make sense for MiMA as roughness is an ad-hoc number anayway
+   !mj avail can be used to set all surface fluxes to zero (where(.not. avail))
+   !mj glacier is currently not used
    avail = .true.
-   if ( allocated(lmask_navy) ) then
-      mask = lmask_navy
-   elseif ( allocated(land_sea_mask) ) then
+   if ( allocated(land_sea_mask) ) then
       mask = land_sea_mask
    else ! by default, treat all as water
       mask    = .true.
@@ -253,19 +254,19 @@ pi = 4.0*atan(1.)
      rough_moist = const_roughness
        
      if(trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then 	
-         where ( .NOT. lmask_navy  ) rough_mom   = const_roughness * mom_roughness_land
-	 where ( .NOT. lmask_navy  ) rough_moist   = const_roughness * q_roughness_land	 
+         where ( .NOT. land_sea_mask  ) rough_mom   = const_roughness * mom_roughness_land
+	 where ( .NOT. land_sea_mask  ) rough_moist   = const_roughness * q_roughness_land	 
      endif
   elseif(roughness_choice == 4) then   !cig: set higher roughness values over land as compared to ocean, and more evaporation over tropics and midlatitudes as compared to subtropics
      rough_mom   = const_roughness
      rough_heat  = const_roughness
      rough_moist = const_roughness
-     if(trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then
-         where ( .NOT. lmask_navy  ) rough_mom   = const_roughness * mom_roughness_land
+     if( allocated(land_sea_mask) )then
+         where ( .NOT. land_sea_mask  ) rough_mom   = const_roughness * mom_roughness_land
 	    
 	  do j = 1, size(Atm%t_bot,2)
       		 lat = 0.5*(Atm%lat_bnd(j+1) + Atm%lat_bnd(j))*180./pi		 
-		  where ( .NOT. lmask_navy(:,j) )   rough_moist(:,j)=const_roughness * q_roughness_land + &
+		  where ( .NOT. land_sea_mask(:,j) )   rough_moist(:,j)=const_roughness * q_roughness_land + &
 			      &	 + (1.e-7)* exp(-abs(lat-0.)**3./(2*15.)) &
 			      &	 + (1.e-25)*exp(-abs(lat-45.)**3./(2*30.)) &
 			      &	 + (1.e-25)*exp(-abs(lat+45.)**3./(2*30.)) 
@@ -645,10 +646,10 @@ if( do_read_init_sst ) then
    call interpolator_init( sst_interp, trim(sst_file)//'.nc',Atm%lon_bnd,Atm%lat_bnd, data_out_of_bounds=(/CONSTANT/) )
 endif
 
-!mj we need lmask_navy for roughness even if surface_choice .eq. 1 or do_external_sst is .true.
+!mj we need land-sea mask for roughness even if surface_choice .eq. 1 or do_external_sst is .true.
 if (trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then 
-   allocate(lmask_navy(size(Atm%t_bot,1),size(Atm%t_bot,2)))
-   ocean_mask_worked = get_ocean_mask(Atm%lon_bnd,Atm%lat_bnd,lmask_navy)
+   allocate(land_sea_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
+   ocean_mask_worked = get_ocean_mask(Atm%lon_bnd,Atm%lat_bnd,land_sea_mask)
    if(.not.ocean_mask_worked) then
       call error_mesg('get_ocean_mask','land_option="'//trim(land_option)//'"'// &
            ' and ocean_mask is not present or water data file does not exist', FATAL)
@@ -682,12 +683,18 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
 
      if( trim(land_option) .eq. 'input' ) then
         allocate(land_sea_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
+        ! read_data cannot deal with booleans, so need to pass via a real first
+        allocate(land_sea_mask_r(size(Atm%t_bot,1),size(Atm%t_bot,2)))
         if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') 'Reading land-sea mask from file INPUT/'//trim(land_sea_mask_file)//'.nc'
-        call read_data('INPUT/'//trim(land_sea_mask_file),trim(land_sea_mask_file),land_sea_mask,domain=Atm%domain)
-        where(land_sea_mask .gt. 0) land_sea_heat_capacity = land_capacity
+        call read_data('INPUT/'//trim(land_sea_mask_file),trim(land_sea_mask_file),land_sea_mask_r,domain=Atm%domain)
+        ! convert real mask to boolean mask
+        land_sea_mask = .false.
+        where( land_sea_mask_r .ge. 0.5 ) land_sea_mask = .true.
+        ! use boolean mask
+        where(.not. land_sea_mask) land_sea_heat_capacity = land_capacity
 ! mj use navy land-sea mask
      else if (trim(land_option) .eq. 'interpolated')then
-        where(.not. lmask_navy) land_sea_heat_capacity = land_capacity
+        where(.not. land_sea_mask) land_sea_heat_capacity = land_capacity
 ! mj land heat capacity function of surface topography
    else if(trim(land_option) .eq. 'zsurf')then
         allocate(zsurf(size(Atm%t_bot,1), size(Atm%t_bot,2)))
@@ -728,7 +735,7 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
                  land_sea_heat_capacity(:,j) = loc_cap
               end if
            enddo
-           where(.not. lmask_navy) land_sea_heat_capacity = land_capacity
+           where(.not. land_sea_mask) land_sea_heat_capacity = land_capacity
         endif
      endif
 endif
