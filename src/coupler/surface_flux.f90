@@ -334,12 +334,13 @@ subroutine surface_flux_1d (                                           &
      w_atm,     u_star,     b_star,     q_star,                        &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
-     dt,        land,      seawater,     avail  )
+     dt,        land,      seawater,     avail,                        & !mj scale flux_q over land
+     flux_q_mask )
 !</PUBLICROUTINE>
 !  slm Mar 28 2002 -- remove agument drag_q since it is just cd_q*wind
 ! ============================================================================
   ! ---- arguments -----------------------------------------------------------
-  logical, intent(in), dimension(:) :: land,  seawater, avail
+  logical, intent(in), dimension(:) :: land,  seawater, avail, flux_q_mask
   real, intent(in),  dimension(:) :: &
        t_atm,     q_atm_in,   u_atm,     v_atm,              &
        p_atm,     z_atm,      t_ca,                          &
@@ -477,7 +478,7 @@ subroutine surface_flux_1d (                                           &
                              seawater, cd_m, cd_t, cd_q, u_star, b_star     )
   end if
 
-  where(land)
+  where(flux_q_mask .and. (q_surf0 - q_atm) .gt. 0.0 ) !mj rescale evaporation only, not condensation
      cd_q = scale_land_evap * cd_q
   endwhere
   where (avail)
@@ -519,7 +520,11 @@ subroutine surface_flux_1d (                                           &
 
      q_star = flux_q / (u_star * rho)             ! moisture scale
      ! ask Chris and Steve K if we still want to keep this for diagnostics
-     q_surf = q_atm + flux_q / (rho*cd_q*w_atm)   ! surface specific humidity
+     where ( cd_q .ne. 0.0 )
+        q_surf = q_atm + flux_q / (rho*cd_q*w_atm)   ! surface specific humidity
+     elsewhere
+        q_surf = q_atm
+     endwhere
 
      ! epg: cfr is 1.0 by default, but set to 0.0 when no_surface_radiative_flux is activated
      flux_r    =   cfr * stefan*t_surf**4               ! (W/m**2)
@@ -585,10 +590,11 @@ subroutine surface_flux_0d (                                                 &
      w_atm_0,     u_star_0,     b_star_0,     q_star_0,                      &
      dhdt_surf_0, dedt_surf_0,  dedq_surf_0,  drdt_surf_0,                   &
      dhdt_atm_0,  dedq_atm_0,   dtaudu_atm_0, dtaudv_atm_0,                  &
-     dt,          land_0,       seawater_0,  avail_0  )
+     dt,          land_0,       seawater_0,  avail_0,                        & !mj scale flux_q
+     flux_q_mask_0 )
 
   ! ---- arguments -----------------------------------------------------------
-  logical, intent(in) :: land_0,  seawater_0, avail_0
+  logical, intent(in) :: land_0,  seawater_0, avail_0, flux_q_mask_0
   real, intent(in) ::                                                  &
        t_atm_0,     q_atm_0,      u_atm_0,     v_atm_0,                &
        p_atm_0,     z_atm_0,      t_ca_0,                              &
@@ -604,7 +610,7 @@ subroutine surface_flux_0d (                                                 &
   real, intent(in)    :: dt
 
   ! ---- local vars ----------------------------------------------------------
-  logical, dimension(1) :: land,  seawater, avail
+  logical, dimension(1) :: land,  seawater, avail, flux_q_mask
   real, dimension(1) :: &
        t_atm,     q_atm,      u_atm,     v_atm,              &
        p_atm,     z_atm,      t_ca,                          &
@@ -641,6 +647,7 @@ subroutine surface_flux_0d (                                                 &
   land(1)        = land_0
   seawater(1)    = seawater_0
   avail(1)       = avail_0
+  flux_q_mask(1) = flux_q_mask_0
 
   call surface_flux_1d (                                                 &
        t_atm,     q_atm,      u_atm,     v_atm,     p_atm,     z_atm,    &
@@ -652,7 +659,8 @@ subroutine surface_flux_0d (                                                 &
        w_atm,     u_star,     b_star,     q_star,                        &
        dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
        dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
-       dt,        land,      seawater, avail  )
+       dt,        land,      seawater, avail,                            & !mj scale flux_1
+       flux_q_mask )
 
   flux_t_0     = flux_t(1)
   flux_q_0     = flux_q(1)
@@ -688,10 +696,11 @@ subroutine surface_flux_2d (                                           &
      w_atm,     u_star,     b_star,     q_star,                        &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
-     dt,        land,       seawater,  avail  )
+     dt,        land,       seawater,  avail,                          & !mj scale flux_q
+     flux_q_mask )
 
   ! ---- arguments -----------------------------------------------------------
-  logical, intent(in), dimension(:,:) :: land,  seawater, avail
+  logical, intent(in), dimension(:,:) :: land,  seawater, avail, flux_q_mask
   real, intent(in),  dimension(:,:) :: &
        t_atm,     q_atm_in,   u_atm,     v_atm,              &
        p_atm,     z_atm,      t_ca,                          &
@@ -720,7 +729,8 @@ subroutine surface_flux_2d (                                           &
           w_atm(:,j),     u_star(:,j),     b_star(:,j),     q_star(:,j),                                  &
           dhdt_surf(:,j), dedt_surf(:,j),  dedq_surf(:,j),  drdt_surf(:,j),                               &
           dhdt_atm(:,j),  dedq_atm(:,j),   dtaudu_atm(:,j), dtaudv_atm(:,j),                              &
-          dt,             land(:,j),       seawater(:,j),  avail(:,j)  )
+          dt,             land(:,j),       seawater(:,j),  avail(:,j),                                    & !mj scale flux_q
+          flux_q_mask(:,j) )
   end do
 end subroutine surface_flux_2d
 

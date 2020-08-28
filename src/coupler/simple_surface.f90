@@ -155,7 +155,7 @@ namelist /simple_surface_nml/ z_ref_heat, z_ref_mom,             &
 !mj  has to be real, with 1.0 = ocean, 0.0 = land
 !mj  but can also use navy_pcwater of course 
   real,allocatable,dimension(:,:):: land_sea_mask_r
-  logical,allocatable,dimension(:,:):: land_sea_mask
+  logical,allocatable,dimension(:,:):: land_sea_mask,flux_q_mask
   type(interpolate_type),save :: sst_interp, lmask_interp
 
 
@@ -226,17 +226,19 @@ pi = 4.0*atan(1.)
    water      = 1.0
    max_water  = 1.0
 
-   !mj mask is used in surface_flux to distinguish between land and sea
+   !mj flux_q_mask is used to scale flux_q (evaporation) over land
+   !mj mask is used in surface_flux to distinguish between land and sea - only if land model is used!
+   !mj  so for MiMA, we want everything to be treated as ocean here.
    !mj seawater is used in surface_flux to account for salinity in saturation pressure
    !mj  this probably doesn't make sense for MiMA as roughness is an ad-hoc number anayway
    !mj avail can be used to set all surface fluxes to zero (where(.not. avail))
    !mj glacier is currently not used
-   avail = .true.
+   flux_q_mask = .false.
    if ( allocated(land_sea_mask) ) then
-      mask = land_sea_mask
-   else ! by default, treat all as water
-      mask    = .true.
+      where(.not. land_sea_mask) flux_q_mask = .true.
    endif
+   avail = .true.
+   mask = .true.
    glacier = .false.
    seawater= .false.
 
@@ -402,9 +404,10 @@ endif
                       drdt_surf, dhdt_atm, dedq_atm,                     &
                       dtaudu_atm,                                        & ! Required argument, intent(out), but not needed by this model.
                       dtaudv_atm, dt,                                    & ! Required argument, intent(in). Looks like it should be .false. everywhere.
-                      .not.mask,                                         &
+                      .not.mask,                                         & ! .true. for land - 
                       seawater,                                          & ! Required argument, intent(in). Looks like fudgefactor for salt water. Use .false.
-                      avail )                                               ! Required argument, intent(in). Looks like it should be .true. everywhere.
+                      avail,                                             & ! Required argument, intent(in). Looks like it should be .true. everywhere.
+                      flux_q_mask )                                        !mj scale flux_q over land
 
 ! intent(out):: flux_t, flux_q, flux_lw, flux_u, flux_v, cd_m, cd_t, cd_q, wind, u_star, b_star, q_star,
 ! intent(out):: dhdt_surf, dedt_surf, dedq_surf, drdt_surf, dhdt_atm, dedq_atm, dtaudu_atm, dtaudv_atm
@@ -512,7 +515,6 @@ real, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
 ! mj end
 
          dt_t_surf = flux/(1.0 -deriv)
-         
       endif
 
    elseif(surface_choice == 2) then
@@ -646,6 +648,8 @@ if( do_read_init_sst ) then
    call interpolator_init( sst_interp, trim(sst_file)//'.nc',Atm%lon_bnd,Atm%lat_bnd, data_out_of_bounds=(/CONSTANT/) )
 endif
 
+!mj scale evaporation (flux_q) over land
+allocate(flux_q_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
 !mj do we need a land-sea mask?
 if (trim(land_option) .ne. 'none') then
    allocate(land_sea_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
@@ -658,6 +662,10 @@ if (trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmask
       call error_mesg('get_ocean_mask','land_option="'//trim(land_option)//'"'// &
            ' and ocean_mask is not present or water data file does not exist', FATAL)
    endif
+   allocate(land_sea_mask_r(size(Atm%t_bot,1),size(Atm%t_bot,2)))
+   land_sea_mask_r = 0.0
+   where(land_sea_mask) land_sea_mask_r = 1.0
+   
 endif
 
 
