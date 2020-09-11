@@ -111,6 +111,7 @@ use atmos_sulfur_hex_mod, only : atmos_sf6_sourcesink,     &
 use atmos_convection_tracer_mod,only: atmos_convection_tracer_init, &
                                       atmos_cnvct_tracer_sourcesink, &
                                       atmos_convection_tracer_end
+use atmos_ozone_tracer_mod,only: atmos_ozone_tracer_sourcesink
 !chemistry start
 !use       chem_interface, only : sourcesink, &
 !                                 driver_init, &
@@ -148,6 +149,7 @@ integer :: nsf6      =0
 
 integer, dimension(:), pointer :: nradon
 integer, dimension(:), pointer :: nconvect
+integer :: nozone
 
 integer :: nt     ! number of activated tracers
 integer :: ntp    ! number of activated prognostic tracers
@@ -338,7 +340,15 @@ integer :: nnn
                                        rtnd, Time, is, ie, js, je,kbot)
        rdt(:,:,:,nconvect(nnn))=rdt(:,:,:,nconvect(nnn))+rtnd(:,:,:)
      endif
-   end do
+  end do
+
+!
+  !--------------- compute ozone tracer source-sink tendency -----
+  nozone = get_tracer_index(MODEL_ATMOS,'ozone_tracer')
+  if ( nozone > 0 ) then
+     call atmos_ozone_tracer_sourcesink ( r(:,:,:,nozone), rtnd, phalf, Time )
+     rdt(:,:,:,nozone) = rdt(:,:,:,nozone) + rtnd(:,:,:)
+  endif
 
 !! RSH 4/8/04
 !! note that if there are no diagnostic tracers, that argument in the

@@ -13,7 +13,11 @@ use       time_manager_mod, only: time_type, get_time, set_time, get_calendar_ty
 use      field_manager_mod, only: MODEL_ATMOS, parse
 
 use     tracer_manager_mod, only: get_number_tracers, query_method, get_tracer_index, get_tracer_names, NO_TRACER, &
-                                  tracer_requires_init, query_tracer_init
+                                  tracer_requires_init, query_tracer_init, &
+                                  set_tracer_profile, have_initialized_tracer
+use atmos_ozone_tracer_mod, only: atmos_ozone_tracer_init, &
+                                  atmos_ozone_tracer_sourcesink, &
+                                  atmos_ozone_tracer_end
 
 use       diag_manager_mod, only: diag_axis_init, register_diag_field, register_static_field, send_data
 
@@ -582,38 +586,48 @@ else
   vg   (:,:,:,2) = vg   (:,:,:,1)
   tg   (:,:,:,2) = tg   (:,:,:,1)
   psg  (:,:,  2) = psg  (:,:,  1)
+  !mj tracer init
+  ! Allocate space to put the initial condition information, temporarily.
+  allocate(lmptmp(size(ug,1),size(ug,2),size(ug,3)))
+  ! need to get the pressure at half levels for interpolation
+  allocate(p_full(size(ug,1), size(ug,2), size(ug,3)))
+  allocate(ln_p_full(size(ug,1), size(ug,2), size(ug,3)))
+  allocate(p_half(size(ug,1), size(ug,2), size(ug,3)+1))
+  allocate(ln_p_half(size(ug,1), size(ug,2), size(ug,3)+1))
+  ! use psg to compute p_half
+  call pressure_variables(p_half, ln_p_half, p_full, ln_p_full, psg(:,:,1))
   do ntr = 1,num_tracers
     if(trim(tracer_attributes(ntr)%name) == 'sphum') then
       if(specify_initial_conditions) then  
          !epg+ray: This loads in sphum from the file initial_conditions.nc
          !mj modified to use interpolator routines
-         ! Allocate space to put the initial condition information, temporarily.
-         allocate(lmptmp(size(ug,1),size(ug,2),size(ug,3)))
-         ! need to get the pressure at half levels for interpolation
-         allocate(p_full(size(ug,1), size(ug,2), size(ug,3)))
-         allocate(ln_p_full(size(ug,1), size(ug,2), size(ug,3)))
-         allocate(p_half(size(ug,1), size(ug,2), size(ug,3)+1))
-         allocate(ln_p_half(size(ug,1), size(ug,2), size(ug,3)+1))
-         ! use psg to compute p_half
-         call pressure_variables(p_half, ln_p_half, p_full, ln_p_full, psg(:,:,1))
          call interpolator(init_conds, Time, p_half, lmptmp, 'sphum', is, js)
          grid_tracers(:,:,:,1,ntr) = lmptmp
          grid_tracers(:,:,:,2,ntr) = lmptmp
-         deallocate(lmptmp,p_full,p_half,ln_p_full,ln_p_half)
-         if(mpp_pe() == mpp_root_pe()) then
-            print *,'tracer ', trim(tracer_attributes(ntr)%name), ' read in from initial_conditions.nc'
-         endif
       else 
          grid_tracers(:,:,:,:,ntr) = initial_sphum
       endif
-    else if(trim(tracer_attributes(ntr)%name) == 'mix_rat') then
-      grid_tracers(:,:,:,:,ntr) = 0.
-    else
-      grid_tracers(:,:,:,:,ntr) = 0.
+   else if(trim(tracer_attributes(ntr)%name) == 'mix_rat') then
+       grid_tracers(:,:,:,:,ntr) = 0.
+    else if(trim(tracer_attributes(ntr)%name) .eq. 'ozone_tracer') then
+      call atmos_ozone_tracer_init(grid_tracers(:,:,:,1,ntr), lonb, latb, p_half, Time, is, js)
+      grid_tracers(:,:,:,2,ntr) = grid_tracers(:,:,:,1,ntr)
+      if(mpp_pe() == mpp_root_pe()) then
+         print *,'tracer ', trim(tracer_attributes(ntr)%name), ' read in from initial conditions file.'
+      endif
+   else
+      if ( query_tracer_init(MODEL_ATMOS,trim(tracer_attributes(ntr)%name)) ) then
+         call set_tracer_profile(MODEL_ATMOS, ntr, grid_tracers(:,:,:,1,ntr) )
+         grid_tracers(:,:,:,2,ntr) = grid_tracers(:,:,:,1,ntr)
+         call have_initialized_tracer(MODEL_ATMOS,trim(tracer_attributes(ntr)%name))
+      else
+         grid_tracers(:,:,:,:,ntr) = 0.
+      endif
     endif
     call trans_grid_to_spherical(grid_tracers(:,:,:,1,ntr), spec_tracers(:,:,:,1,ntr))
     spec_tracers(:,:,:,2,ntr) = spec_tracers(:,:,:,1,ntr)
   enddo
+  deallocate(lmptmp,p_full,p_half,ln_p_full,ln_p_half)
 endif
 
 return

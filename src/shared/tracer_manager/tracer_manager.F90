@@ -308,6 +308,7 @@ do n=1,nfields
          tracers(num_tracer_fields)%instances_set   = .FALSE.
          num_tracer_methods     = 0
          methods = default_method ! initialize methods array
+         tracers(num_tracer_fields)%needs_init = .false.
          call get_field_methods(n,methods)
          do j=1,num_methods
             select case (methods(j)%method_type) 
@@ -322,13 +323,15 @@ do n=1,nfields
                siz_inst = parse(methods(j)%method_name,"",instances)
                tracers(num_tracer_fields)%instances = instances
                tracers(num_tracer_fields)%instances_set   = .TRUE.
+            case ('profile_type')
+               tracers(num_tracer_fields)%needs_init = .true.
+               num_tracer_methods = num_tracer_methods+1
             case default
                num_tracer_methods = num_tracer_methods+1
-!               tracers(num_tracer_fields)%methods(num_tracer_methods) = methods(j)
+ !              tracers(num_tracer_fields)%methods(num_tracer_methods) = methods(j)
             end select
          enddo
          tracers(num_tracer_fields)%num_methods = num_tracer_methods
-         tracers(num_tracer_fields)%needs_init = .false.
          flag_type = query_method ('tracer_type',model,num_tracer_comp_model,name_type)
          if (flag_type .and. name_type == 'diagnostic') then
             tracers(num_tracer_fields)%is_prognostic = .false.
@@ -574,7 +577,6 @@ do n=1,nfields
       enddo
    endif
 enddo
-
 
 
 num_tracers = num_prog + num_diag + num_family
@@ -1108,6 +1110,7 @@ write(log_unit, *) 'Tracer longname      : ', trim(tracers(i)%tracer_longname)
 write(log_unit, *) 'Tracer is_prognostic : ', tracers(i)%is_prognostic
 write(log_unit, *) 'Tracer is_family     : ', tracers(i)%is_family
 write(log_unit, *) 'Tracer is_combined   : ', tracers(i)%is_combined
+write(log_unit, *) 'Tracer needs_init    : ', tracers(i)%needs_init
 
 if (associated(tracers(i)%field)) then
    write(log_unit, '(a,3i5)') 'Size of tracer field : ', size(tracers(i)%field,1), size(tracers(i)%field,2),&
@@ -1828,7 +1831,7 @@ tracer = surf_value
 
 if ( query_method ( 'profile_type',model,n,scheme,control)) then
 !Change the tracer_number to the tracer_manager version
-
+  
   if(lowercase(trim(scheme(1:5))).eq.'fixed') then
     profile_type                   = 'Fixed'
     flag =parse(control,'surface_value',surf_value)
@@ -1862,7 +1865,8 @@ if ( query_method ( 'profile_type',model,n,scheme,control)) then
 ! Assume an exponential decay/increase from the surface to the top level
 !  C = C0 exp ( -multiplier* level_number)
 !  => multiplier = exp [ ln(Ctop/Csurf)/number_of_levels]
-!
+
+    !
 numlevels = size(tracer,3) -1
     if (associated(tracers(TRACER_ARRAY(model,n))%field)) numlevels = size(tracers(TRACER_ARRAY(model,n))%field,3) -1
     if (associated(tracers(TRACER_ARRAY(model,n))%field_tlevels)) numlevels = size(tracers(TRACER_ARRAY(model,n))%field_tlevels,3)-1
