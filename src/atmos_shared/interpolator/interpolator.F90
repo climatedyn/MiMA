@@ -645,7 +645,9 @@ enddo
     endif  
     if( .not. associated(clim_type%halflevs) )  then
         allocate( clim_type%halflevs(nlev+1) )
-        clim_type%halflevs(1) = 0.0
+!        clim_type%halflevs(1) = 0.0
+! mj allow out_of_bounds at top: need clim_type%halflevs(1) > 0        
+        clim_type%halflevs(1) = max(0.0,clim_type%levs(1)-0.5*(clim_type%levs(2)-clim_type%levs(1)))
         if (clim_type%level_type == PRESSURE) then
           clim_type%halflevs(nlev+1) = 1013.25* 100.0   ! MKS
         else if (clim_type%level_type == SIGMA   ) then
