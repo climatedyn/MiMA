@@ -28,8 +28,8 @@
 !   for radiation that are not within astro.f90
 !
 !   external modules
-        use parkind, only         : im => kind_im, rb => kind_rb
-        use interpolator_mod, only: interpolate_type
+        use parkind,            only : im => kind_im, rb => kind_rb
+        use interpolator_mod,   only : interpolate_type
 !
 !  rrtm_radiation variables
 !
@@ -128,6 +128,7 @@
                                                               !     to ozone_file if 'none'
         real(kind=rb)      :: scale_ozone = 1.0               ! scale the ozone values in the file by this factor
         real(kind=rb)      :: o3_val = 0.0                    ! if do_read_ozone = .false., give ozone this constant value
+        logical            :: do_use_ozone_tracer = .false.   ! use ozone tracer instead
         logical            :: do_read_h2o=.false.             ! read water vapor from an external file?
         character(len=256) :: h2o_file='h2o'                  !  file name of h2o file to read
         character(len=256) :: h2o_name='none'                   !  variable name in h2o file. defaults
@@ -189,8 +190,10 @@
 !---------------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------------
 
-        namelist/rrtm_radiation_nml/ include_secondary_gases, do_read_ozone, ozone_file, ozone_name, scale_ozone, o3_val, &
-             &do_read_h2o, h2o_file, h2o_name, ch4_val, n2o_val, o2_val, cfc11_val, cfc12_val, cfc22_val, ccl4_val, &
+        namelist/rrtm_radiation_nml/ include_secondary_gases, do_read_ozone, &
+             &ozone_file, ozone_name, scale_ozone, o3_val, do_use_ozone_tracer, &
+             &do_read_h2o, h2o_file, h2o_name, ch4_val, n2o_val, o2_val, &
+             &cfc11_val, cfc12_val, cfc22_val, ccl4_val, &
              &do_read_radiation, radiation_file, rad_missing_value, &
              &do_read_sw_flux, sw_flux_file, do_read_lw_flux, lw_flux_file,&
              &h2o_lower_limit,temp_lower_limit,temp_upper_limit,co2ppmv, &
@@ -225,7 +228,7 @@
           use fms_mod, only:          open_namelist_file, check_nml_error,  &
                                       &mpp_pe, mpp_root_pe, close_file, &
                                       &write_version_number, stdlog, &
-                                      &error_mesg, NOTE, WARNING
+                                      &error_mesg, NOTE, WARNING, FATAL
           use time_manager_mod, only: time_type
 ! Local variables
           implicit none
@@ -328,6 +331,10 @@
                   'SETTING DO_PRECIP_ALBEDO TO FALSE AS DO_READ_RADIATION AND DO_READ_?W_FLUX ARE .TRUE.', NOTE)
              do_precip_albedo = .false.
           endif
+          if ( do_read_ozone .and. do_use_ozone_tracer ) then
+             call error_mesg('rrtm_radiation_init', &
+                  'CANNOT HAVE TO_READ_OZONE AND DO_USE_OZONE_TRACER AT THE SAME TIME.',FATAL)
+          endif
 
 !------------ set some constants and parameters -------
 
@@ -389,11 +396,11 @@
           endif
 
           if(do_read_ozone)then
-             call interpolator_init (o3_interp, trim(ozone_file)//'.nc', lonb, latb, data_out_of_bounds=(/ZERO/))
+             call interpolator_init (o3_interp, trim(ozone_file)//'.nc', lonb, latb, data_out_of_bounds=(/CONSTANT/))
           endif
 
           if(do_read_h2o)then
-             call interpolator_init (h2o_interp, trim(h2o_file)//'.nc', lonb, latb, data_out_of_bounds=(/ZERO/))
+             call interpolator_init (h2o_interp, trim(h2o_file)//'.nc', lonb, latb, data_out_of_bounds=(/CONSTANT/))
           endif
 
           if(store_intermediate_rad .or. id_flux_sw > 0) &
@@ -466,7 +473,7 @@
         end subroutine interp_temp
 !*****************************************************************************************
 !*****************************************************************************************
-        subroutine run_rrtmg(is,js,Time,lat,lon,p_full,p_half,albedo,q,t,t_surf_rad,tdt,coszen,flux_sw,flux_lw)
+        subroutine run_rrtmg(is,js,Time,lat,lon,p_full,p_half,albedo,q,t,t_surf_rad,tdt,coszen,flux_sw,flux_lw,r)
 !
 ! Driver for RRTMG radiation scheme.
 ! Prepares all inputs, calls SW and LW radiation schemes,
@@ -482,6 +489,8 @@
           use rrtm_vars
           use time_manager_mod,only: time_type,get_time,set_time
           use interpolator_mod,only: interpolator
+          use tracer_manager_mod,only: get_tracer_index
+          use field_manager_mod,only: MODEL_ATMOS
 !---------------------------------------------------------------------------------------------------------------
 ! In/Out variables
           implicit none
@@ -489,28 +498,30 @@
           integer, intent(in)                               :: is, js          ! index range for each CPU
           type(time_type),intent(in)                        :: Time            ! global time in calendar
           real(kind=rb),dimension(:,:,:),intent(in)         :: p_full,p_half   ! pressure, full and half levels
-                                                                               ! dimension (lat x lon x p*)
+                                                                               ! dimension (lon x lat x p*)
           real(kind=rb),dimension(:,:,:),intent(in)         :: q               ! water vapor mixing ratio [g/g]
-                                                                               ! dimension (lat x lon x pfull)
+                                                                               ! dimension (lon x lat x pfull)
           real(kind=rb),dimension(:,:,:),intent(in)         :: t               ! temperature [K]
-                                                                               ! dimension (lat x lon x pfull)
+                                                                               ! dimension (lon x lat x pfull)
           real(kind=rb),dimension(:,:),intent(in)           :: lat,lon         ! latitude, longitude
-                                                                               ! dimension (lat x lon)
+                                                                               ! dimension (lon x lat)
           real(kind=rb),dimension(:,:),intent(in)           :: albedo          ! surface albedo
-                                                                               ! dimension (lat x lon)
+                                                                               ! dimension (lon x lat)
           real(kind=rb),dimension(:,:),intent(in)           :: t_surf_rad      ! surface temperature [K]
-                                                                               ! dimension (lat x lon)
+                                                                               ! dimension (lon x lat)
           real(kind=rb),dimension(:,:,:),intent(inout)      :: tdt             ! heating rate [K/s]
-                                                                               ! dimension (lat x lon x pfull)
+                                                                               ! dimension (lon x lat x pfull)
           real(kind=rb),dimension(:,:),intent(out)          :: coszen          ! cosine of zenith angle
-                                                                               ! dimension (lat x lon)
+                                                                               ! dimension (lon x lat)
           real(kind=rb),dimension(:,:),intent(out),optional :: flux_sw,flux_lw ! surface fluxes [W/m2]
-                                                                               ! dimension (lat x lon)
+                                                                               ! dimension (lon x lat)
                                                                                ! need to have both or none!
+          real(kind=rb),dimension(:,:,:,:),intent(in)       :: r               ! tracers
+                                                                               ! dimension (lon x lat x pfull x ntracers)
 !---------------------------------------------------------------------------------------------------------------
 ! Local variables
           integer k,j,i,ij,j1,i1,ij1,kend,dyofyr,seconds,days
-          integer si,sj,sk,locmin(3)
+          integer si,sj,sk,locmin(3),nozone
           real(kind=rb),dimension(size(q,1),size(q,2),size(q,3)) :: o3f
           real(kind=rb),dimension(ncols_rrt,nlay_rrt) :: pfull,tfull&
                , hr,hrc, swhr, swhrc
@@ -603,8 +614,13 @@
           if(.not. use_dyofyr) dyofyr=0 !use solrad instead of day of year
 
           !get ozone
-          if(do_read_ozone)then
-             call interpolator( o3_interp, Time_loc, p_half, o3f, ozone_name )
+          if(do_read_ozone .or. do_use_ozone_tracer)then
+             if ( do_read_ozone ) then
+                call interpolator( o3_interp, Time_loc, p_half, o3f, ozone_name )
+             else if ( do_use_ozone_tracer ) then
+                nozone = get_tracer_index(MODEL_ATMOS,'ozone_tracer')
+                o3f = r(:,:,:,nozone)
+             endif
              o3f = o3f*scale_ozone
              !due to interpolation, some values might be negative
              o3f = max(0.0,o3f)

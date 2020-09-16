@@ -550,8 +550,9 @@ if(file_exist(trim(file))) then
         call read_data(trim(file), trim(tr_name)//'_imag', imag_part, spectral_domain, timelevel=nt)
         do k=1,num_levels; do n=ns,ne; do m=ms,me
           spec_tracers(m,n,k,nt,ntr) = cmplx(real_part(m,n,k),imag_part(m,n,k))
-        enddo; enddo; enddo
-      endif
+       enddo; enddo; enddo
+      endif 
+      if( trim(tr_name) .eq. 'ozone_tracer' ) call atmos_ozone_tracer_init(lonb, latb, is, js)
     enddo ! loop over tracers
   enddo ! loop over time levels
   call read_data(trim(file), 'vorg', vorg, grid_domain)
@@ -610,10 +611,10 @@ else
    else if(trim(tracer_attributes(ntr)%name) == 'mix_rat') then
        grid_tracers(:,:,:,:,ntr) = 0.
     else if(trim(tracer_attributes(ntr)%name) .eq. 'ozone_tracer') then
-      call atmos_ozone_tracer_init(grid_tracers(:,:,:,1,ntr), lonb, latb, p_half, Time, is, js)
+      call atmos_ozone_tracer_init(lonb, latb, is, js, p_half, Time, grid_tracers(:,:,:,1,ntr))
       grid_tracers(:,:,:,2,ntr) = grid_tracers(:,:,:,1,ntr)
       if(mpp_pe() == mpp_root_pe()) then
-         print *,'tracer ', trim(tracer_attributes(ntr)%name), ' read in from initial conditions file.'
+         print *,'tracer ', trim(tracer_attributes(ntr)%name), ' initialized from file.'
       endif
    else
       if ( query_tracer_init(MODEL_ATMOS,trim(tracer_attributes(ntr)%name)) ) then
