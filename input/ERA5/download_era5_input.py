@@ -35,12 +35,10 @@ start = datetime(**dates['sdate'])
 if args.end_date is None:
     date_str_pl = start.strftime(dateFormat)
     date_str_ml = date_str_pl
-    postfix     = start.strftime(postFormat)
 else:
     end   = datetime(**dates['edate'])
     date_str_pl = '/'.join([start.strftime(dateFormat),end.strftime(dateFormat)])
     date_str_ml = date_str_pl.replace('/','/to/')
-    postfix     = '-'.join([start.strftime(postFormat),end.strftime(postFormat)])
 
 
 p_levs = ['1','2','3','5','7','10',

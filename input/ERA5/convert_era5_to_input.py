@@ -23,11 +23,6 @@ parser.add_argument('-o',dest='a_out',default=None,help='Name of 3D initial cond
 parser.add_argument('--ts-out',dest='ts_out',default=None,help='Name of surface temperature input file for MiMA (optional).')
 parser.add_argument('--o3-out',dest='o3_out',default=None,help='Name of ozone input file for MiMA (optional).')
 parser.add_argument('-a',dest='average',action='store_false',help='DO NOT average over time. Averaging is recommended for initial conditions, but not for continuous forcing such as ozone or surface temperature.')
-parser.add_argument('-O',dest='o3_file',default=None,help='Name of ERA5 file containing o3 (optional).')
-parser.add_argument('-o',dest='a_out',default=None,help='Name of 3D initial conditions file for MiMA.')
-parser.add_argument('--ts-out',dest='ts_out',default=None,help='Name of surface temperature input file for MiMA (optional).')
-parser.add_argument('--o3-out',dest='o3_out',default=None,help='Name of ozone input file for MiMA (optional).')
-parser.add_argument('-a',dest='average',action='store_true',help='Perform time average. This will create a time-independent input which will be considered climatology in MiMA. [False]')
 args = parser.parse_args()
 
 
@@ -122,21 +117,6 @@ if args.o3_file is not None:
     if args.average:
         if len(do.time) > 1:
               print('WARNING: AVERAGING {0} OVER {1} TIMESTEPS.'.format(args.o3_file,len(do.time)))
-    da = da.mean(dim='time')
-if args.surf_file is not None:
-    ds = xr.open_dataset(args.surf_file).sortby('latitude')
-    if len(ds.time) > 1:
-        print('WARNING: AVERAGING {0} OVER {1} TIMESTEPS.'.format(args.surf_file,len(ds.time)))
-    ds = ds.mean(dim='time')
-if args.ts_file is not None:
-    dt = xr.open_dataset(args.ts_file).sortby('latitude')
-    if args.average:
-        if len(dt.time) > 1:
-              print('WARNING: AVERAGING {0} OVER {1} TIMESTEPS.'.format(args.ts_file,len(dt.time)))
-        dt = dt.mean(dim='time')
-if args.o3_file is not None:
-    do = xr.open_dataset(args.o3_file).sortby('latitude')
-    if args.average:
         do = do.mean(dim='time')
 
 # now do all the necessary conversions
@@ -211,40 +191,4 @@ if args.o3_out is not None:
             encode_dict['time'] = t_enc
             do.encoding['unlimited_dims'] = ['time']
         do.to_netcdf(args.o3_out,encoding=encode_dict)
-# finally, write the new files
-##########################################################
-ftype = 'f4'
-ttype = ftype
-tunit = 'days since 0001-01-01T00:00:00'
-tcal  = 'julian'
-t_enc = {'units':tunit,'calendar':tcal,'dtype':ttype}
-#
-#
-if args.a_out is not None:
-    mima_init3 = xr.merge([dd['ucomp'],dd['vcomp'],dd['temp'],dd['sphum'],dd['ps']])
-    #
-    encode_dict = DefCompress(mima_init3)
-    encode_dict['pfull']= {'dtype':ftype}
-    if 'time' in mima_init3:
-        encode_dict['time'] = t_enc
-    mima_init3.to_netcdf(args.a_out,encoding=encode_dict)
-    print(args.a_out)
-if args.ts_out is not None:
-    for var in dd.data_vars:
-        if var == 't2m' or var == 'skt':
-            break
-    encode_dict = DefCompress(dd,var)
-    if 'time' in dd:
-        encode_dict['time'] = t_enc
-    dd[var].to_netcdf(args.ts_out,encoding=encode_dict)
-    print(args.ts_out)
-if args.o3_out is not None:
-    if args.o3_file is None:
-        encode_dict = DefCompress(da,'o3')
-        encode_dict['pfull']= {'dtype':ftype}
-        if 'time' in da:
-            encode_dict['time'] = t_enc
-        da['o3'].to_netcdf(args.o3_out,encoding=encode_dict)
-    else:
-        do.to_netcdf(args.o3_out)
     print(args.o3_out)
