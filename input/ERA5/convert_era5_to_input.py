@@ -101,14 +101,16 @@ new_names = {
 
 if args.atmos_file is not None:
     da = xr.open_dataset(args.atmos_file).sortby('latitude')
-    if len(da.time) > 1:
+    if len(da.time) > 1 and args.average:
         print('WARNING: AVERAGING {0} OVER {1} TIMESTEPS.'.format(args.atmos_file,len(da.time)))
-    da = da.mean(dim='time')
+    if args.average:
+        da = da.mean(dim='time')
 if args.surf_file is not None:
     ds = xr.open_dataset(args.surf_file).sortby('latitude')
-    if len(ds.time) > 1:
+    if len(ds.time) > 1 and args.average:
         print('WARNING: AVERAGING {0} OVER {1} TIMESTEPS.'.format(args.surf_file,len(ds.time)))
-    ds = ds.mean(dim='time')
+    if args.average:
+        ds = ds.mean(dim='time')
 if args.ts_file is not None:
     dt = xr.open_dataset(args.ts_file).sortby('latitude')
     if args.average:
