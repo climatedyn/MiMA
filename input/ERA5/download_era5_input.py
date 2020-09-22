@@ -11,6 +11,7 @@ parser.add_argument('-e',dest='end_date',default=None,help="End date (including)
 parser.add_argument('-g',dest='grid',default=['1.0','1.0'],nargs=2,help="Select grid resolution. [1.0 x 1.0].")
 parser.add_argument('--o3',dest='ozone',action='store_true',help="also download ozone data.")
 parser.add_argument('-a',dest='avg',action='store_true',help="DO NOT average over all downloaded timesteps. Passed on to convert_era5_to_input.py.")
+parser.add_argument('-E',dest='ensembles',default=None,help="Create multiple input files for ensemble runs. Passed on to create_ensembles.py.")
 args = parser.parse_args()
 
 in_dates = {'sdate':args.start_date,'edate':args.end_date}
@@ -27,14 +28,17 @@ for date in datelist:
     }
 
 dateFormat = '%Y-%m-%d'
+postFormat = '%Y%m%d'
 start = datetime(**dates['sdate'])
 if args.end_date is None:
     date_str_pl = start.strftime(dateFormat)
     date_str_ml = date_str_pl
+    postfix     = start.strftime(postFormat)
 else:
     end   = datetime(**dates['edate'])
     date_str_pl = '/'.join([start.strftime(dateFormat),end.strftime(dateFormat)])
     date_str_ml = date_str_pl.replace('/','/to/')
+    postfix     = '-'.join([start.strftime(postFormat),end.strftime(postFormat)])
 
 
 p_levs = ['1','2','3','5','7','10',
@@ -56,12 +60,8 @@ if args.ozone:
 
 c = cdsapi.Client()
 
-if args.end_date is None:
-    file3d = 'download_3d_levels.{0}.nc'.format(args.start_date)
-    file2d = 'download_2d.{0}.nc'.format(args.start_date)
-else:
-    file3d = 'download_3d.levels.{0}-{1}.nc'.format(args.start_date,args.end_date)
-    file2d = 'download_2d.{0}-{1}.nc'.format(args.start_date,args.end_date)
+file3d = 'download_3d_levels.{0}.nc'.format(postfix)
+file2d = 'download_2d.{0}.nc'.format(postfix)
 
 file3d_ml = file3d.replace('levels','ml')
 file3d_pl = file3d.replace('levels','pl')
@@ -124,14 +124,26 @@ file3d_mix = file3d.replace('.levels','')
 print('MERGING MODEL LEVEL AND PRESSURE LEVEL DATA INTO ONE FILE.')
 subprocess.run(['python','mix_ml_pl.py','--ml',file3d_ml,'--pl',file3d_pl,'-o',file3d_mix])
 
-arglist = ['convert_era5_to_input.py','-A',file3d_mix,'-S',file2d,'-T',file2d,'--ts-out',file2d.replace('download_2d','tsurf'),'-o',file2d.replace('download_2d','initial_conditions')]
-if args.avg:
+init_conds_file = file2d.replace('download_2d','initial_conditions')
+tsurf_file = file2d.replace('download_2d','tsurf')
+
+arglist = ['convert_era5_to_input.py','-A',file3d_mix,'-S',file2d,'-T',file2d,'--ts-out',tsurf_file,'-o',init_conds_file]
+if ( args.avg ) or ( args.ensembles is not None ):
     arglist.append('-a')
 if args.ozone:
-    arglist = arglist + ['--o3-out',file2d.replace('download_2d','ozone')]
+    ozone_file = file2d.replace('download_2d','ozone')
+    arglist = arglist + ['--o3-out',ozone_file]
 print('CREATING INITIAL CONDITIONS.')
 subprocess.run(['python']+arglist)
 
-#subprocess.run(['rm',file3d_pl,file3d_ml,file2d,file3d_mix])
+if args.ensembles is not None:
+    arglist = ['create_ensembles.py','-i',init_conds_file,'-t',tsurf_file,'-n',args.ensembles]
+    if args.ozone:
+        arglist = arglist + ['-O',ozone_file]
+    print('CREATING ENSEMBLE INITIAL CONDITIONS.')
+    subprocess.run(['python']+arglist)
 
+# clean up helper files
+subprocess.run(['rm',file3d_pl,file3d_ml,file2d,file3d_mix])
+print('DONE.')
 
