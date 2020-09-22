@@ -170,7 +170,7 @@ real    :: damping_coeff       = 1.15740741e-4, & ! (one tenth day)**-1
 !         u,v,T, ps, and q must be specified (as: ucomp, vcomp, temp, ps, and sphum, respecitively)
 !         in a netcdf file called "$(initial_file).nc" and placed in the INPUT/ directory
 logical :: specify_initial_conditions = .false.
-character(len=32) :: initial_file = 'initial_conditions'
+character(len=64) :: initial_file = 'initial_conditions'
 
 
 
