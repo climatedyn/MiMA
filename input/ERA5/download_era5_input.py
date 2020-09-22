@@ -35,10 +35,12 @@ start = datetime(**dates['sdate'])
 if args.end_date is None:
     date_str_pl = start.strftime(dateFormat)
     date_str_ml = date_str_pl
+    postfix     = start.strftime(postFormat)
 else:
     end   = datetime(**dates['edate'])
     date_str_pl = '/'.join([start.strftime(dateFormat),end.strftime(dateFormat)])
     date_str_ml = date_str_pl.replace('/','/to/')
+    postfix     = '-'.join([start.strftime(postFormat),end.strftime(postFormat)])
 
 
 p_levs = ['1','2','3','5','7','10',
@@ -156,13 +158,5 @@ if args.ensembles is not None:
     if args.ozone:
         arglist = arglist + ['-O',ozone_file]
     print('CREATING ENSEMBLE INITIAL CONDITIONS.')
-    command = ['python']+arglist
-    print(' '.join(command))
-    subprocess.run(command)
-
-# clean up helper files
-print('IF ALL WENT WELL, YOU CAN CLEANUP INTERMEDIATE FILES BY RUNNING')
-print('rm',file3d_pl,file3d_ml,file2d,file3d_mix)
-#isubprocess.run(['rm',file3d_pl,file3d_ml,file2d,file3d_mix])
 print('DONE.')
 
