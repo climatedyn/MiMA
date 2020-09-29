@@ -990,6 +990,7 @@ if ( do_local_heating ) then
    do j=1,ngauss
       if ( hamp(j) .ne. 0. .and. pcenter(j) .lt. 0. ) then
          do_surface_heating = .true.
+         print*,'PERFORMING SURFACE HEATING'
       endif
    enddo
 endif
