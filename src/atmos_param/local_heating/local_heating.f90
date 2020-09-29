@@ -74,7 +74,7 @@ module local_heating_mod
   
   ! local variables
   real,dimension(ngauss) :: logpc
-  integer                :: daysperyear
+  integer(8)             :: daysperyear
   logical                :: do_3d_heating
   
 contains
@@ -84,8 +84,8 @@ contains
     integer, intent(in), dimension(4) :: axes
     type(time_type), intent(in)       :: Time
     !-----------------------------------------------------------------------
-    integer :: seconds
-    integer :: unit, io, ierr, n
+    integer(8) :: seconds
+    integer    :: unit, io, ierr, n
 
     !     ----- read namelist -----
 
@@ -202,7 +202,7 @@ contains
     real, dimension(3,ngauss),intent(out),optional :: tcenter
     ! local variables
     integer :: i,j,d,n,deltasecs
-    integer :: seconds,days,fullseconds
+    integer(8) :: seconds,days,fullseconds
     real    :: tcent(3),t_factor,targ,halfper
     real, dimension(size(lon,1),size(lon,2)) :: lon_factor,lat_factor
     logical :: do_horiz

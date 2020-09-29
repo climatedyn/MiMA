@@ -520,7 +520,8 @@
                                                                                ! dimension (lon x lat x pfull x ntracers)
 !---------------------------------------------------------------------------------------------------------------
 ! Local variables
-          integer k,j,i,ij,j1,i1,ij1,kend,dyofyr,seconds,days
+          integer k,j,i,ij,j1,i1,ij1,kend,dyofyr
+          integer(8) seconds,days
           integer si,sj,sk,locmin(3),nozone
           real(kind=rb),dimension(size(q,1),size(q,2),size(q,3)) :: o3f
           real(kind=rb),dimension(ncols_rrt,nlay_rrt) :: pfull,tfull&
@@ -565,10 +566,10 @@
           endif
 !make sure we run perpetual when solday > 0)
           if(solday > 0)then
-             Time_loc = set_time(seconds,solday)
+             Time_loc = set_time(seconds,INT(solday,8))
           elseif(slowdown_rad .ne. 1.0)then
              seconds = days*86400 + seconds
-             Time_loc = set_time(int(seconds*slowdown_rad))
+             Time_loc = set_time(int(seconds*slowdown_rad,8))
           else
              Time_loc = Time
           endif

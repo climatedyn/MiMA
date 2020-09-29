@@ -945,7 +945,7 @@ real, dimension(size(t,1),size(t,2),size(t,3))  :: k_rad
 integer                                         :: ipt,jpt
 integer, dimension(MAX_PTS) :: nsave
 integer :: iloc(MAX_PTS), jloc(MAX_PTS), nn, kk, npts, nnsave
-integer :: year, month, day, hour, minute, second
+integer(8) :: year, month, day, hour, minute, second
 character(len=16) :: mon
                     
 !-----------------------------------------------------------------------

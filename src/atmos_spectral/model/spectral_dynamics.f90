@@ -204,7 +204,8 @@ logical, intent(out) :: dry_model_out
 integer, intent(out) :: nhum_out
 logical, optional, intent(in), dimension(:,:) :: ocean_mask
 
-integer :: num_total_wavenumbers, unit, k, seconds, days, ierr, io, ntr, nsphum, nmix_rat
+integer :: num_total_wavenumbers, unit, k, ierr, io, ntr, nsphum, nmix_rat
+integer(8) :: seconds,days
 logical :: south_to_north = .true.
 real    :: ref_surf_p_implicit, robert_coeff_tracers
 
@@ -459,7 +460,7 @@ endif
 call set_domain(grid_domain)
 
 call get_time(Time_step, seconds, days)
-dt_real = 86400*days + seconds
+dt_real = INT(86400,8)*days + seconds
 
 module_is_initialized = .true.
 return
@@ -814,7 +815,8 @@ real, dimension(is:ie, js:je, num_levels             ) :: dt_ug_tmp, dt_vg_tmp, 
 real, dimension(is:ie, js:je, num_levels             ) :: dt_ug_damp, dt_vg_damp, dt_tg_damp
 real, dimension(is:ie, js:je, num_levels, num_tracers) :: dt_tracers_tmp
 
-integer :: j, k, time_level, seconds, days, nsphum
+integer :: j, k, time_level, nsphum
+integer(8):: seconds, days 
 real    :: delta_t, temperature_correction
 real, dimension(num_tracers) :: dt_hadv, dt_vadv
 !mj error message
@@ -978,7 +980,7 @@ previous = current
 current  = future
 
 call get_time(Time, seconds, days)
-seconds = seconds + step_number*int(dt_real/2)
+seconds = seconds + INT(step_number*int(dt_real/2),8)
 Time_diag = set_time(seconds, days)
 call every_step_diagnostics( &
      Time_diag, psg(:,:,current), ug(:,:,:,current), vg(:,:,:,current), tg(:,:,:,current), grid_tracers(:,:,:,current,:), &
@@ -1631,7 +1633,8 @@ real, dimension(is:ie, js:je, num_levels)   :: ln_p_full, p_full, z_full, work
 real, dimension(is:ie, js:je, num_levels+1) :: ln_p_half, p_half, z_half
 real, dimension(is:ie, js:je)               :: t_low, slp
 logical :: used
-integer :: ntr, i, j, k, seconds, days
+integer :: ntr, i, j, k
+integer(8) :: seconds, days
 character(len=8) :: err_msg_1, err_msg_2
 
 if(id_ps  > 0)    used = send_data(id_ps,  p_surf, Time)
@@ -1719,7 +1722,8 @@ type(time_type), intent(in) :: Time
 real, intent(in), dimension(is:ie, js:je)                          :: p_surf
 real, intent(in), dimension(is:ie, js:je, num_levels)              :: u_grid, v_grid, t_grid, wg_full
 real, intent(in), dimension(is:ie, js:je, num_levels, num_tracers) :: tr_grid
-integer :: year, month, days, hours, minutes, seconds
+integer(8) :: year, month, hours, minutes
+integer(8) :: seconds, days
 character(len=4), dimension(12) :: month_name
 
 month_name=(/' Jan',' Feb',' Mar',' Apr',' May',' Jun',' Jul',' Aug',' Sep',' Oct',' Nov',' Dec'/)

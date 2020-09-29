@@ -47,7 +47,8 @@ character(len=128), parameter :: tagname = &
 public :: atmosphere_init, atmosphere_down, atmosphere_up, atmosphere_end, atmosphere_domain
 public :: atmosphere_resolution, atmosphere_boundary, get_bottom_mass, get_bottom_wind, get_atmosphere_axes
 public :: surf_diff_type
-integer :: seconds, days, num_tracers, num_levels, nhum
+integer(8) :: seconds, days
+integer :: num_tracers, num_levels, nhum
 logical :: dry_model
 
 integer, parameter :: num_time_levels=2

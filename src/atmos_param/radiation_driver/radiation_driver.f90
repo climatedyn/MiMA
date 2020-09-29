@@ -288,7 +288,7 @@ logical ::     &
                                       !  angle be renormalized on each 
                                       !  timestep because of the 
                                       !  movement of earth wrt the sun ?
-integer, dimension(6) ::    &
+integer(8), dimension(6) ::    &
     rad_date = (/ 0, 0, 0, 0, 0, 0 /) !  fixed date for which radiation
                                       !  is to be valid (applies to
                                       !  solar info, ozone, clouds)
@@ -995,7 +995,7 @@ character(len=*), dimension(:), intent(in)   :: aerosol_family_names
       integer           ::   unit, io, ierr
       integer           ::   kmax 
       integer           ::   nyr, nv, nband
-      integer           ::   yr, month, year, dum
+      integer(8)        ::   yr, month, year, dum
 
 !---------------------------------------------------------------------
 !   local variables
@@ -1222,12 +1222,12 @@ character(len=*), dimension(:), intent(in)   :: aerosol_family_names
 !    solar_dataset_entry as a time_type variable.
 !----------------------------------------------------------------------
         Model_init_time = get_base_time()
-        Solar_entry  = set_date (solar_dataset_entry(1), &
-                                 solar_dataset_entry(2), &
-                                 solar_dataset_entry(3), &
-                                 solar_dataset_entry(4), &
-                                 solar_dataset_entry(5), &
-                                 solar_dataset_entry(6))
+        Solar_entry  = set_date (INT(solar_dataset_entry(1),8), &
+                                 INT(solar_dataset_entry(2),8), &
+                                 INT(solar_dataset_entry(3),8), &
+                                 INT(solar_dataset_entry(4),8), &
+                                 INT(solar_dataset_entry(5),8), &
+                                 INT(solar_dataset_entry(6),8))
         call error_mesg ('radiation_driver_mod', &
              'Solar data is varying in time', NOTE)
         call print_date (Solar_entry , str='Data from solar timeseries &
@@ -1266,12 +1266,12 @@ character(len=*), dimension(:), intent(in)   :: aerosol_family_names
 !----------------------------------------------------------------------
 !    convert solar_dataset_entry to a time_type variable.
 !----------------------------------------------------------------------
-          Solar_entry  = set_date (solar_dataset_entry(1), &
-                                   solar_dataset_entry(2), &
-                                   solar_dataset_entry(3), &
-                                   solar_dataset_entry(4), &
-                                   solar_dataset_entry(5), &
-                                   solar_dataset_entry(6))
+          Solar_entry  = set_date (INT(solar_dataset_entry(1),8), &
+                                   INT(solar_dataset_entry(2),8), &
+                                   INT(solar_dataset_entry(3),8), &
+                                   INT(solar_dataset_entry(4),8), &
+                                   INT(solar_dataset_entry(5),8), &
+                                   INT(solar_dataset_entry(6),8))
           call error_mesg ('radiation_driver_mod', &
                                 'Solar data is fixed in time', NOTE)
           call print_date (Solar_entry ,    &
@@ -2329,8 +2329,8 @@ logical,         intent(out)    ::  need_aerosols, need_clouds,   &
 !---------------------------------------------------------------------
 !   local variables:
 
-      integer        :: year, month, day, sec
-      integer        :: dum, tod(3)
+      integer(8)     :: year, month, day, sec
+      integer(8)     :: dum, tod(3)
       integer        :: nband
       type(time_type) :: Solar_time
 

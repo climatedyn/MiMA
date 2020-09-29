@@ -1002,7 +1002,7 @@ real,  dimension(:,:,:), intent(out)  ,optional :: diffm, difft
       type(microphysics_type)                        :: Lsc_microphys, &
                                                         Meso_microphys,&
                                                         Cell_microphys
-      integer          ::    sec, day
+      integer(8)       ::    sec, day
       real             ::    dt, alpha, dt2
       logical          ::    need_aerosols, need_clouds, need_gases,   &
                              need_basic
@@ -1666,7 +1666,7 @@ integer,dimension(:,:), intent(in),   optional :: kbot
 
       real, dimension(size(u,1), size(u,2), size(u,3)) :: diff_cu_mo_loc
       real, dimension(size(u,1), size(u,2))            :: gust_cv
-      integer :: sec, day
+      integer(8) :: sec, day
       real    :: dt
    
 !---------------------------------------------------------------------

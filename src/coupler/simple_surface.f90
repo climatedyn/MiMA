@@ -560,6 +560,7 @@ real, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
    if ( id_q_flux > 0 ) used = send_data ( id_q_flux, flux_q, Time )
    if ( id_o_flux > 0 ) used = send_data ( id_o_flux, flux_o, Time )
    if ( id_heat   > 0 ) used = send_data ( id_heat,land_sea_heat_capacity,Time )
+   if ( id_tdt_horiz>0) used = send_data ( id_tdt_horiz,horiz_heat,Time )
    if ( id_entrop_evap > 0 ) then
       entrop_evap = flux_q/sst
       used = send_data ( id_entrop_evap, entrop_evap, Time)
@@ -991,6 +992,7 @@ if ( do_local_heating ) then
    do j=1,ngauss
       if ( hamp(j) .ne. 0. .and. pcenter(j) .lt. 0. ) then
          do_surface_heating = .true.
+         print*,'PERFORMING SURFACE HEATING'
       endif
    enddo
 endif
@@ -1157,6 +1159,9 @@ subroutine diag_field_init ( Time, atmos_axes )
    id_heat        = & !mj
    register_diag_field ( mod_name, 'heat_capacity',atmos_axes, Time,     &
                         'mixed layer heat capacity','none' )
+   id_tdt_horiz  = & !mj
+   register_diag_field ( mod_name, 'tdt_sheat', atmos_axes, Time,     &
+                        'surface heating','K/s' )
    id_entrop_evap      = &
    register_diag_field ( mod_name, 'entrop_evap', atmos_axes, Time,     &
                         'entropy source from evap','kg/m2/s/K' )

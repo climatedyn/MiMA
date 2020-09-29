@@ -229,14 +229,14 @@ type(time_type)              :: base_time
 type(time_type)              :: last_time
 logical                      :: NAME_PRESENT
 real                         :: dtr,tpi
-integer                      :: fileday, filemon, fileyr, filehr, filemin,filesec, m,m1
+integer(8)                   :: fileday, filemon, fileyr, filehr, filemin,filesec, m,m1
 character(len= 20)           :: fileunits
 real, dimension(:), allocatable  :: alpha
 integer   :: j, k, ii, i
 logical :: non_monthly
 character(len=24) :: file_calendar
 integer :: model_calendar
-integer :: yr, mo, dy, hr, mn, sc
+integer(8) :: yr, mo, dy, hr, mn, sc
 integer :: n
 type(time_type) :: Julian_time, Noleap_time
 real, allocatable :: time_in(:)
@@ -1072,13 +1072,13 @@ real :: pclim(size(clim_type%halflevs(:)))
 integer :: istart,iend,jstart,jend
 logical :: result, found
 logical :: found_field=.false.
-integer :: modyear, modmonth, modday, modhour, modminute, modsecond
-integer :: climyear, climmonth, climday, climhour, climminute, climsecond
-integer :: year1, month1, day, hour, minute, second
+integer(8) :: modyear, modmonth, modday, modhour, modminute, modsecond
+integer(8) :: climyear, climmonth, climday, climhour, climminute, climsecond
+integer(8) :: year1, month1, day, hour, minute, second
 integer :: taum1, taup1, taum2, taup2, climatology, m
 type(time_type) :: clim_datem, clim_datep, mod_time, prev_clim_time, t_prev, t_next
 type(time_type), dimension(2) :: month
-integer :: indexm, indexp, yearm, yearp
+integer(8) :: indexm, indexp, yearm, yearp
 integer :: i, j, k, n, itaum, itaup
 
 
@@ -1476,13 +1476,13 @@ real :: pclim(size(clim_type%halflevs(:)))
 integer :: istart,iend,jstart,jend
 logical :: result, found
 logical :: found_field=.false.
-integer :: modyear, modmonth, modday, modhour, modminute, modsecond
-integer :: climyear, climmonth, climday, climhour, climminute, climsecond
-integer :: year1, month1, day, hour, minute, second
+integer(8) :: modyear, modmonth, modday, modhour, modminute, modsecond
+integer(8) :: climyear, climmonth, climday, climhour, climminute, climsecond
+integer(8) :: year1, month1, day, hour, minute, second
 integer :: taum1, taup1, taum2, taup2, climatology, m
 type(time_type) :: clim_datem, clim_datep, mod_time, prev_clim_time, t_prev, t_next
 type(time_type), dimension(2) :: month
-integer :: indexm, indexp, yearm, yearp
+integer(8) :: indexm, indexp, yearm, yearp
 integer :: i, j, k, itaum, itaup, n
 
 

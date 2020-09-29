@@ -127,13 +127,13 @@ integer :: period = 0        ! specified length of year [ seconds ] ;
                              ! must be specified to override default 
                              ! value given by length_of_year in 
                              ! time_manager_mod
-integer :: day_ae    = 23    ! day of specified autumnal equinox
-integer :: month_ae  = 9     ! month of specified autumnal equinox
-integer :: year_ae   = 1998  ! year of specified autumnal equinox
-integer :: hour_ae   = 5     ! hour of specified autumnal equinox
-integer :: minute_ae = 37    ! minute of specified autumnal equinox
-integer :: second_ae = 0     ! second of specified autumnal equinox
-integer :: num_angles = 3600 ! number of intervals into which the year 
+integer(8) :: day_ae    = 23    ! day of specified autumnal equinox
+integer(8) :: month_ae  = 9     ! month of specified autumnal equinox
+integer(8) :: year_ae   = 1998  ! year of specified autumnal equinox
+integer(8) :: hour_ae   = 5     ! hour of specified autumnal equinox
+integer(8) :: minute_ae = 37    ! minute of specified autumnal equinox
+integer(8) :: second_ae = 0     ! second of specified autumnal equinox
+integer    :: num_angles = 3600 ! number of intervals into which the year 
                              ! is divided to compute orbital positions
 
 
@@ -239,8 +239,8 @@ real,   dimension(:), intent(in), optional   :: lonb
 !-------------------------------------------------------------------
 !  local variables:
 
-      integer                         :: unit, ierr, io, seconds,  &
-                                         days, jd, id
+      integer                         :: unit, ierr, io, jd, id
+      integer(8)                      :: seconds,days
 
 !-------------------------------------------------------------------
 !  local variables:
@@ -413,7 +413,7 @@ integer, intent(out) :: period_out
 !--------------------------------------------------------------------
 !   local variables:
 
-      integer :: seconds, days
+      integer(8) :: seconds, days
 
 !---------------------------------------------------------------------
 !    exit if module has not been initialized.
@@ -3483,7 +3483,7 @@ real                        :: t
 !--------------------------------------------------------------------
 !   local variables
 
-      integer ::  seconds, days
+      integer(8) ::  seconds, days
 
       call get_time (time, seconds, days)
       t = twopi*real(seconds)/seconds_per_day 

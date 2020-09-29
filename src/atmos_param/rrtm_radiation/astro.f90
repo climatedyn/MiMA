@@ -25,7 +25,7 @@ module rrtm_astro
                                                               !  this is done within RRTM, and assumes 365days/year!
         real(kind=rb)      :: solr_cnst= 1368.22              ! solar constant [W/m2]
         real(kind=rb)      :: solrad=1.0                      ! distance Earth-Sun [AU] if use_dyofyr=.false.
-        integer(kind=im)   :: solday=0                        ! if >0, do perpetual run corresponding to 
+        integer            :: solday=0                        ! if >0, do perpetual run corresponding to 
                                                               !  day of the year = solday \in [0,days per year]
         real(kind=rb)      :: equinox_day=0.25                ! fraction of the year defining March equinox \in [0,1]
         
@@ -72,14 +72,14 @@ module rrtm_astro
             integer(kind=im),            intent(in) :: dt          ! time step over which to average (if > 0)
             real(kind=rb),dimension(:,:),intent(in) :: lat,lon     ! lon/lat grid
             real(kind=rb),dimension(:,:),intent(out):: cosz        ! cosine of zenith angle
-            integer(kind=im)            ,intent(out):: dyofyr      ! day of the year to compute cosz at
+            integer                     ,intent(out):: dyofyr      ! day of the year to compute cosz at
 ! Locals
             real(kind=rb),dimension(size(lat,1),size(lat,2)) :: h,cos_h, &
                  lat_h
 
             real     :: dec_sin,dec_tan,dec,dec_cos,twopi,dt_pi
 
-            integer  :: seconds,sec2,days,daysperyear
+            integer(8):: seconds,sec2,days,daysperyear
             real,dimension(size(lon,1),size(lon,2)) :: time_pi,aa,bb,tt,st,stt,sh,fracday
             real     :: radsec,radday
 
@@ -96,7 +96,7 @@ module rrtm_astro
             endif
 
             call get_time(length_of_year(),sec2,daysperyear)
-            if( daysperyear .ne. 365 .and. use_dyofyr ) then
+            if( daysperyear .ne. INT(365,8) .and. use_dyofyr ) then
              print*,' number of days per year: ',daysperyear
              call error_mesg ( 'astro', &
                   ' use_dyofyr is TRUE but the calendar year does not have 365 days. STOPPING', &

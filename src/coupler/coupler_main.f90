@@ -240,7 +240,7 @@ program coupler_main
 
 ! logical :: ocean_seg_start
 ! logical :: ocean_seg_end
-  integer :: date_init(6)
+  integer(8) :: date_init(6)
   integer :: calendar_type = -99
 
 !-----------------------------------------------------------------------
@@ -543,7 +543,7 @@ contains
 !   initialize all defined exchange grids and all boundary maps
 !-----------------------------------------------------------------------
     integer :: unit, log_unit, ierr, io, id, jd, kd, m, i
-    integer :: date(6)
+    integer(8) :: date(6)
     type (time_type) :: Run_length
     character(len=9) :: month
     integer :: pe, npes
@@ -932,7 +932,8 @@ contains
 
   subroutine coupler_end
 
-    integer :: unit, date(6)
+    integer :: unit
+    integer(8) :: date(6)
 !-----------------------------------------------------------------------
 
     call mpp_set_current_pelist()

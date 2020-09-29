@@ -88,11 +88,11 @@ contains
     integer, dimension(8) :: seed
     
     ! Local variables
-    integer :: year, month, day, hour, minute, second
+    integer(8) :: year, month, day, hour, minute, second
     
     
     call get_date(time, year, month, day, hour, minute, second)
-    seed = (/ i, j, year, month, day, hour, minute, second /)
+    seed = (/ i, j, int(year), int(month), int(day), int(hour), int(minute), int(second) /)
   end function constructSeed
 end module random_numbers_mod
 

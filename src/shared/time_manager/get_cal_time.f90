@@ -151,7 +151,8 @@ real, intent(in) :: time_increment
 character(len=*), intent(in) :: units
 character(len=*), intent(in) :: calendar
 type(time_type) :: get_cal_time
-integer :: year, month, day, hour, minute, second
+integer(8) :: year, month, day, hour, minute, second
+integer(8),parameter :: secperday=86400,minperday=1440,hoursperday=24,monthperyear=12
 integer :: i1, i2, i3, i4, i5, i6, increment_seconds, increment_days, increment_years, increment_months
 real    :: month_fraction
 integer :: calendar_tm_i, calendar_in_i, namelist_unit, ierr, io
@@ -264,16 +265,16 @@ endif
 
 if(lowercase(units(1:10)) == 'days since') then
   increment_days = floor(time_increment)
-  increment_seconds = 86400*(time_increment - increment_days) 
+  increment_seconds = secperday*(time_increment - increment_days) 
 else if(lowercase(units(1:11)) == 'hours since') then
-  increment_days = floor(time_increment/24)
-  increment_seconds = 86400*(time_increment/24 - increment_days)
+  increment_days = floor(time_increment/hoursperday)
+  increment_seconds = secperday*(time_increment/hoursperday - increment_days)
 else if(lowercase(units(1:13)) == 'minutes since') then
-  increment_days = floor(time_increment/1440)
-  increment_seconds = 86400*(time_increment/1440 - increment_days)
+  increment_days = floor(time_increment/minperday)
+  increment_seconds = secperday*(time_increment/minperday - increment_days)
 else if(lowercase(units(1:13)) == 'seconds since') then
-  increment_days = floor(time_increment/86400)
-  increment_seconds = 86400*(time_increment/86400 - increment_days)
+  increment_days = floor(time_increment/secperday)
+  increment_seconds = secperday*(time_increment/secperday - increment_days)
 else if(lowercase(units(1:11)) == 'years since') then
 ! The time period between between (base_time + time_increment) and
 ! (base_time + time_increment + 1 year) may be 360, 365, or 366 days.
@@ -282,18 +283,18 @@ else if(lowercase(units(1:11)) == 'years since') then
   base_time             = set_date(year+floor(time_increment)  ,month,day,hour,minute,second)
   base_time_plus_one_yr = set_date(year+floor(time_increment)+1,month,day,hour,minute,second)
   call get_time(base_time_plus_one_yr - base_time, second, day)
-  dt = (day*86400+second)*(time_increment-floor(time_increment))
-  increment_days = floor(dt/86400)
-  increment_seconds = dt - increment_days*86400
+  dt = (day*secperday+second)*(time_increment-floor(time_increment))
+  increment_days = floor(dt/secperday)
+  increment_seconds = dt - increment_days*secperday
 else if(lowercase(units(1:12)) == 'months since') then
   month_fraction = time_increment - floor(time_increment)
-  increment_years  = floor(time_increment/12)
-  increment_months = floor(time_increment) - 12*increment_years
+  increment_years  = floor(time_increment/monthperyear)
+  increment_months = floor(time_increment) - monthperyear*increment_years
   call get_date(base_time, year,month,day,hour,minute,second)
   base_time = set_date(year+increment_years,month+increment_months  ,day,hour,minute,second)
-  dt = 86400*days_in_month(base_time) * month_fraction
-  increment_days = floor(dt/86400)
-  increment_seconds = dt - increment_days*86400
+  dt = secperday*days_in_month(base_time) * month_fraction
+  increment_days = floor(dt/secperday)
+  increment_seconds = dt - increment_days*secperday
 else
   call error_mesg('get_cal_time','"'//trim(units)//'"'//' is not an acceptable units attribute of time.'// &
     ' It must begin with: "years since", "months since", "days since", "hours since", "minutes since", or "seconds since"',FATAL)

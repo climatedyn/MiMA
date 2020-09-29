@@ -362,7 +362,7 @@ integer, dimension(:), intent(in)  :: diag_i, diag_j
 !--------------------------------------------------------------------
 !     local variables:
 
-      integer           :: year, month, day, hour, minute, second 
+      integer(8)        :: year, month, day, hour, minute, second 
       character(len=8)  :: mon
       character(len=64) :: header
 

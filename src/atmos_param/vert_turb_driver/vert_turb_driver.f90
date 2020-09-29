@@ -157,7 +157,8 @@ real   , dimension(size(diff_t,1),size(diff_t,2), &
 real   , dimension(size(t,1),size(t,2),size(t,3))   :: tt, qq, uu, vv
 real   , dimension(size(t,1),size(t,2),size(t,3))   :: qlin, qiin, qain
 real    :: dt_tke
-integer :: ie, je, nlev, sec, day, nt
+integer :: ie, je, nlev, nt
+integer(8) :: sec,day
 logical :: used
 !-----------------------------------------------------------------------
 !----------------------- vertical turbulence ---------------------------

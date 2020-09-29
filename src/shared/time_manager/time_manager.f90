@@ -101,8 +101,8 @@ integer, private :: days_per_month(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
 ! time_type is implemented as seconds and days to allow for larger intervals
 type time_type
    private
-   integer:: seconds
-   integer:: days
+   integer(8):: seconds
+   integer(8):: days
 end type time_type
 
 !======================================================================
@@ -124,7 +124,7 @@ interface operator (//);  module procedure time_real_divide; end interface
 !======================================================================
 
 interface set_time
-  module procedure set_time_i, set_time_c
+  module procedure set_time_i8, set_time_i, set_time_c
 end interface
 
 interface set_date
@@ -173,6 +173,36 @@ contains
 !     A time interval corresponding to this number of days and seconds.
 !   </OUT>
 
+function set_time_i8(seconds, days)
+
+! Returns a time interval corresponding to this number of days and seconds.
+! The arguments must not be negative but are otherwise unrestricted.
+
+implicit none
+
+type(time_type) :: set_time_i8
+integer(8), intent(in) :: seconds
+integer(8), intent(in), optional :: days
+integer(8) :: days_in, secperday
+
+secperday = INT(60*60*24,8)
+
+days_in = 0;  if (present(days)) days_in = days
+
+! Negative time offset is illegal
+if(seconds < 0 .or. days_in < 0) call error_handler('Negative input in set_time_i')
+
+! Make sure seconds greater than a day are fixed up
+set_time_i8%seconds = seconds - seconds / secperday * secperday
+
+! Check for overflow on days before doing operation
+if(seconds / secperday  >= huge(days_in) - days_in) &
+   call error_handler('Integer overflow in days in set_time_i')
+set_time_i8%days = days_in + seconds / secperday
+
+end function set_time_i8
+! </FUNCTION>
+!---------------------------------------------------------------------------
 function set_time_i(seconds, days)
 
 ! Returns a time interval corresponding to this number of days and seconds.
@@ -183,20 +213,8 @@ implicit none
 type(time_type) :: set_time_i
 integer, intent(in) :: seconds
 integer, intent(in), optional :: days
-integer :: days_in
 
-days_in = 0;  if (present(days)) days_in = days
-
-! Negative time offset is illegal
-if(seconds < 0 .or. days_in < 0) call error_handler('Negative input in set_time_i')
-
-! Make sure seconds greater than a day are fixed up
-set_time_i%seconds = seconds - seconds / (60*60*24) * (60*60*24)
-
-! Check for overflow on days before doing operation
-if(seconds / (60*60*24)  >= huge(days_in) - days_in) &
-   call error_handler('Integer overflow in days in set_time_i')
-set_time_i%days = days_in + seconds / (60*60*24)
+set_time_i = set_time_i8(INT(seconds,8),INT(days,8))
 
 end function set_time_i
 ! </FUNCTION>
@@ -209,7 +227,8 @@ implicit none
 type(time_type) :: set_time_c
 character(len=*), intent(in) :: string
 character(len=4) :: formt='(i )'
-integer :: i1, i2, day, second
+integer :: i1, i2
+integer(8) :: day, second
 character(len=32) :: string_sifted_left
 
 string_sifted_left = adjustl(string)
@@ -264,16 +283,17 @@ subroutine get_time(time, seconds, days)
 implicit none
 
 type(time_type), intent(in) :: time
-integer, intent(out) :: seconds
-integer, intent(out), optional :: days
+integer(8), intent(out) :: seconds
+integer(8), intent(out), optional :: days
+integer(8), parameter :: secperday = 86400
 
 seconds = time%seconds
 if (present(days)) then
   days = time%days
 else
-  if (time%days > (huge(seconds) - seconds)/(60*60*24)) &
+  if (time%days > (huge(seconds) - seconds)/secperday) &
   call error_handler('Integer overflow in seconds in get_time use days')
-  seconds = seconds + time%days * (60*60*24)
+  seconds = seconds + time%days * secperday
 endif
 
 end subroutine get_time
@@ -315,14 +335,16 @@ implicit none
 
 type(time_type) :: increment_time
 type(time_type), intent(in) :: time
-integer, intent(in) :: seconds
-integer, intent(in), optional :: days
-integer :: days_in
+integer(8), intent(in) :: seconds
+integer(8), intent(in), optional :: days
+integer(8) :: days_in, zero
 
-days_in = 0;  if (present(days)) days_in = days
+zero = INT(0,8)
+
+days_in = zero;  if (present(days)) days_in = days
 
 ! Increment must be positive definite
-if(seconds < 0 .or. days_in < 0) &
+if(seconds < zero .or. days_in < zero) &
    call error_handler('Negative increment in increment_time')
 
 ! Watch for immediate overflow on days or seconds
@@ -372,27 +394,30 @@ implicit none
 
 type(time_type) :: decrement_time
 type(time_type), intent(in) :: time
-integer, intent(in) :: seconds
-integer, intent(in), optional :: days
-integer :: cseconds, cdays
+integer(8), intent(in) :: seconds
+integer(8), intent(in), optional :: days
+integer(8) :: cseconds, cdays, zero, secperday
 
-cdays = 0;  if (present(days)) cdays = days
+zero = INT(0,8)
+secperday = INT(86400,8)
+
+cdays = zero;  if (present(days)) cdays = days
 
 ! Decrement must be positive definite
-if(seconds < 0 .or. cdays < 0) &
+if(seconds < zero .or. cdays < zero) &
    call error_handler('Negative decrement in decrement_time')
 
 cseconds = time%seconds - seconds
 cdays = time%days - cdays
 
 ! Borrow if needed
-if(cseconds < 0) then
-   cdays = cdays - 1 + (cseconds + 1) / (60*60*24)
-   cseconds = cseconds - (60*60*24) * (-1 + (cseconds + 1) / (60*60*24))
+if(cseconds < zero) then
+   cdays = cdays - 1 + (cseconds + 1) / secperday
+   cseconds = cseconds - secperday * (-1 + (cseconds + 1) / secperday)
 end if
 
 ! Check for illegal negative time
-if(cdays < 0) call error_handler('Negative time results in decrement_time')
+if(cdays < zero) call error_handler('Negative time results in decrement_time')
 
 decrement_time%seconds = cseconds
 decrement_time%days = cdays
@@ -736,7 +761,7 @@ implicit none
 type(time_type) :: time_scalar_mult
 type(time_type), intent(in) :: time
 integer, intent(in) :: n
-integer :: days, seconds
+integer(8) :: days, seconds
 double precision :: sec_prod 
 
 ! Multiplying here in a reasonable fashion to avoid overflow is tricky
@@ -927,7 +952,7 @@ end function time_type_to_real
 function real_to_time_type(x)
 type(time_type) :: real_to_time_type
 real, intent(in) :: x
-integer :: seconds, days
+integer(8) :: seconds, days
 
 days = floor(x/86400.)
 seconds = int(x - 86400.*days)
@@ -969,7 +994,7 @@ type(time_type) :: time_scalar_divide
 type(time_type), intent(in) :: time
 integer, intent(in) :: n
 double precision :: d, div
-integer :: days, seconds
+integer(8) :: days, seconds
 type(time_type) :: prod1, prod2
 
 ! Convert time interval to floating point days; risky for general performance?
@@ -1227,7 +1252,7 @@ subroutine get_date(time, year, month, day, hour, minute, second)
 implicit none
 
 type(time_type), intent(in) :: time
-integer, intent(out) :: second, minute, hour, day, month, year
+integer(8), intent(out) :: second, minute, hour, day, month, year
 
 select case(calendar_type)
 case(THIRTY_DAY_MONTHS)
@@ -1252,8 +1277,10 @@ subroutine get_date_gregorian(time, year, month, day, hour, minute, second)
 implicit none
 
 type(time_type), intent(in) :: time
-integer, intent(out) :: second, minute, hour, day, month, year
-integer :: m,t,dyear,dmonth,dday,nday,nleapyr,nfh,nhund,nfour
+integer(8), intent(out) :: second, minute, hour, day, month, year
+integer :: m,t,nleapyr,nfh,nhund,nfour,nday
+integer(8) :: dyear,dmonth,dday
+integer(8), parameter :: secperday=86400,sixty=60
 integer ndiy,nex,ibaseyr
 logical :: leap
 
@@ -1294,40 +1321,40 @@ leap=(nex.eq.3).and.((nfour.ne.24).or.(nhund.eq.3))
  else
   ndiy=365
  endif
-year=ibaseyr+400*nfh+100*nhund+4*nfour+nex
+year=INT(ibaseyr+400*nfh+100*nhund+4*nfour+nex,8)
 nday=nday+1
 ! find month 
-month=0
+month=INT(0,8)
 do m=1,12
  if (leap.and.(m.eq.2)) then
   if (nday.le. (days_per_month(2)+1)) then
-   month = m
+   month = INT(m,8)
    go to 10
   else
    nday = nday - (days_per_month(2)+1)
-   month = m
-   t = t -  (60*60*24 * (days_per_month(2)+1))
+   month = INT(m,8)
+   t = t -  (secperday * (days_per_month(2)+1))
   endif
  else 
   if (nday.le. days_per_month(m)) then
-   month = m
+   month = INT(m,8)
    go to 10
   else
    nday = nday - days_per_month(m)
-   month = m
-   t = t -  (60*60*24 * days_per_month(month))
+   month = INT(m,8)
+   t = t -  (secperday * days_per_month(month))
   endif
  endif
 enddo
 10 continue
 ! find day, hour,minute and second
-dday = t / (60*60*24)
-day = nday
-t = t - dday * (60*60*24)
-hour = t / (60 * 60)
-t = t - hour * (60 * 60)
-minute = t / 60
-second = t - 60 * minute
+dday = t / secperday
+day = INT(nday,8)
+t = t - dday * secperday
+hour = INT(t,8) / (sixty * sixty)
+t = t - hour * (sixty * sixty)
+minute = INT(t,8) / sixty
+second = INT(t,8) - sixty * minute
 !if(leap) print*,'1:t,s,m,h,d,m,y=',time,second,minute,hour,day,month,year
 
 
@@ -1359,7 +1386,7 @@ subroutine get_date_julian(time, year, month, day, hour, minute, second)
 implicit none
 
 type(time_type), intent(in) :: time
-integer, intent(out) :: second, minute, hour, day, month, year
+integer(8), intent(out) :: second, minute, hour, day, month, year
 
 integer :: m, t, nfour, nex, days_this_month
 logical :: leap
@@ -1410,7 +1437,7 @@ subroutine get_date_thirty(time, year, month, day, hour, minute, second)
 implicit none
 
 type(time_type), intent(in) :: time
-integer, intent(out) :: second, minute, hour, day, month, year
+integer(8), intent(out) :: second, minute, hour, day, month, year
 integer :: t, dmonth, dyear
 
 t = time%days
@@ -1437,7 +1464,7 @@ subroutine get_date_no_leap(time, year, month, day, hour, minute, second)
 implicit none
 
 type(time_type), intent(in) :: time
-integer, intent(out) :: second, minute, hour, day, month, year
+integer(8), intent(out) :: second, minute, hour, day, month, year
 integer :: m, t
 
 ! get modulo number of days
@@ -1498,14 +1525,15 @@ function set_date_i(year, month, day, hours, minutes, seconds)
 implicit none
 
 type(time_type) :: set_date_i
-integer, intent(in) :: day, month, year
-integer, intent(in), optional :: seconds, minutes, hours
-integer :: oseconds, ominutes, ohours
+integer(8), intent(in) :: day, month, year
+integer(8), intent(in), optional :: seconds, minutes, hours
+integer(8) :: oseconds, ominutes, ohours
+integer(8),parameter :: zero=0
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
 
 select case(calendar_type)
 case(THIRTY_DAY_MONTHS)
@@ -1548,7 +1576,7 @@ character(len=4) :: formt='(i )'
 logical :: correct_form
 integer :: i1, i2, i3, i4, i5, i6
 character(len=32) :: string_sifted_left
-integer :: year, month, day, hour, minute, second
+integer(8) :: year, month, day, hour, minute, second
 
 string_sifted_left = adjustl(string)
 i1 = index(string_sifted_left,'-')
@@ -1601,21 +1629,22 @@ function set_date_gregorian(year, month, day, hours, minutes, seconds)
 implicit none
 
 type(time_type) :: set_date_gregorian
-integer, intent(in) :: day, month, year
-integer, intent(in), optional :: seconds, minutes, hours
-integer :: oseconds, ominutes, ohours
+integer(8), intent(in) :: day, month, year
+integer(8), intent(in), optional :: seconds, minutes, hours
+integer(8) :: oseconds, ominutes, ohours
 integer days, m, nleapyr
 integer :: base_year = 1900
 logical :: leap
+integer(8),parameter :: zero=0
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
 
 ! Need to check for bogus dates
-if(oseconds .gt. 59 .or. oseconds .lt. 0 .or. ominutes .gt. 59 .or. ominutes .lt. 0 &
-   .or. ohours .gt. 23 .or. ohours .lt. 0 .or. day .gt. 31 .or. day .lt. 1 &
+if(oseconds .gt. 59 .or. oseconds .lt. zero .or. ominutes .gt. 59 .or. ominutes .lt. zero &
+   .or. ohours .gt. 23 .or. ohours .lt. zero .or. day .gt. 31 .or. day .lt. 1 &
         .or. month .gt. 12 .or. month .lt. 1 .or. year .lt. base_year) &
       call error_handler('Invalid date in set_date_gregorian')
 
@@ -1647,21 +1676,22 @@ function set_date_julian(year, month, day, hours, minutes, seconds)
 implicit none
 
 type(time_type) :: set_date_julian
-integer, intent(in) :: day, month, year
-integer, intent(in), optional :: seconds, minutes, hours
-integer :: oseconds, ominutes, ohours
+integer(8), intent(in) :: day, month, year
+integer(8), intent(in), optional :: seconds, minutes, hours
+integer(8) :: oseconds, ominutes, ohours
 integer ndays, m, nleapyr
 logical :: leap
 character(len=36) :: chdate
+integer(8),parameter :: zero=0
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
 
 ! Need to check for bogus dates
-if(oseconds > 59 .or. oseconds < 0 .or. ominutes > 59 .or. ominutes < 0 &
-   .or. ohours > 23 .or. ohours < 0 .or. day < 1 &
+if(oseconds > 59 .or. oseconds < zero .or. ominutes > 59 .or. ominutes < zero &
+   .or. ohours > 23 .or. ohours < zero .or. day < 1 &
    .or. month > 12 .or. month < 1 .or. year < 1) then
    write(chdate,'(6i6)') year,month,day,ohours,ominutes,oseconds
    call error_handler('Invalid date in set_date_julian. Date='//chdate)
@@ -1697,14 +1727,15 @@ function set_date_thirty(year, month, day, hours, minutes, seconds)
 implicit none
 
 type(time_type) :: set_date_thirty
-integer, intent(in) :: day, month, year
-integer, intent(in), optional :: seconds, minutes, hours
-integer :: oseconds, ominutes, ohours
+integer(8), intent(in) :: day, month, year
+integer(8), intent(in), optional :: seconds, minutes, hours
+integer(8) :: oseconds, ominutes, ohours
+integer(8),parameter :: zero=0
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
 
 ! Need to check for bogus dates
 if(oseconds > 59 .or. oseconds < 0 .or. ominutes > 59 .or. ominutes < 0 &
@@ -1726,15 +1757,17 @@ function set_date_no_leap(year, month, day, hours, minutes, seconds)
 implicit none
 
 type(time_type) :: set_date_no_leap
-integer, intent(in) :: day, month, year
-integer, intent(in), optional :: seconds, minutes, hours
-integer :: oseconds, ominutes, ohours
-integer ndays, m
+integer(8), intent(in) :: day, month, year
+integer(8), intent(in), optional :: seconds, minutes, hours
+integer(8) :: oseconds, ominutes, ohours
+integer(8) :: ndays, days_in
+integer :: m
+integer(8),parameter :: zero=0
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
 
 ! Need to check for bogus dates
 if(oseconds > 59 .or. oseconds < 0 .or. ominutes > 59 .or. ominutes < 0 &
@@ -1747,11 +1780,11 @@ if(day > days_per_month(month)) call error_handler('Invalid day in set_date_no_l
 
 ndays = 0
 do m = 1, month - 1
-   ndays = ndays + days_per_month(m)
+   ndays = ndays + INT(days_per_month(m),8)
 enddo
-
-set_date_no_leap = set_time(oseconds + 60 * (ominutes + 60 * ohours), &
-   day -1 + ndays + 365 * (year - 1))
+days_in = INT(day,8) -INT(1,8) + ndays + INT(365,8) * (INT(year,8) - INT(1,8))
+set_date_no_leap = set_time(oseconds + INT(60,8) * (ominutes + INT(60,8) * ohours), &
+   days_in )
 
 end function set_date_no_leap
 
@@ -1833,23 +1866,24 @@ implicit none
 
 type(time_type) :: increment_gregorian
 type(time_type), intent(in) :: time
-integer, intent(in), optional :: seconds, minutes, hours, days, months, years
-integer :: oseconds, ominutes, ohours, odays, omonths, oyears
-integer :: csecond, cminute, chour, cday, cmonth, cyear
+integer(8), intent(in), optional :: seconds, minutes, hours, days, months, years
+integer(8) :: oseconds, ominutes, ohours, odays, omonths, oyears
+integer(8) :: csecond, cminute, chour, cday, cmonth, cyear
+integer(8), parameter :: zero=0
 
 call error_handler('increment_gregorian not implemented')
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
-odays = 0; if(present(days)) odays = days
-omonths = 0; if(present(months)) omonths = months
-oyears = 0; if(present(years)) oyears = years
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
+odays = zero; if(present(days)) odays = days
+omonths = zero; if(present(months)) omonths = months
+oyears = zero; if(present(years)) oyears = years
 
 ! Increment must be positive definite
-if(oseconds < 0 .or. ominutes < 0 .or. ohours < 0 .or. odays < 0 .or. omonths < 0 .or. &
-   oyears < 0) call error_handler('Illegal increment in increment_gregorian')
+if(oseconds < zero .or. ominutes < zero .or. ohours < zero .or. odays < zero .or. omonths < zero .or. &
+   oyears < zero) call error_handler('Illegal increment in increment_gregorian')
 
 ! First convert time into date
 call get_date_gregorian(time, cyear, cmonth, cday, chour, cminute, csecond)
@@ -1876,46 +1910,47 @@ implicit none
 
 type(time_type) :: increment_julian
 type(time_type), intent(in) :: time
-integer, intent(in), optional :: seconds, minutes, hours, days, months, years
-integer :: oseconds, ominutes, ohours, odays, omonths, oyears
-integer :: csecond, cminute, chour, cday, cmonth, cyear, dyear
+integer(8), intent(in), optional :: seconds, minutes, hours, days, months, years
+integer(8) :: oseconds, ominutes, ohours, odays, omonths, oyears
+integer(8) :: csecond, cminute, chour, cday, cmonth, cyear, dyear
 type(time_type) :: t
+integer(8),parameter :: zero=0,twelve=12
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
-odays = 0; if(present(days)) odays = days
-omonths = 0; if(present(months)) omonths = months
-oyears = 0; if(present(years)) oyears = years
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
+odays = zero; if(present(days)) odays = days
+omonths = zero; if(present(months)) omonths = months
+oyears = zero; if(present(years)) oyears = years
 
 ! Increment must be positive definite
-if(oseconds < 0 .or. ominutes < 0 .or. ohours < 0 .or. odays < 0 .or. &
-   omonths < 0 .or. oyears < 0) &
+if(oseconds < zero .or. ominutes < zero .or. ohours < zero .or. odays < zero .or. &
+   omonths < zero .or. oyears < zero) &
    call error_handler('Illegal increment in increment_julian')
 
 !  There are a number of other bad types of increments that should be
 !  prohibited here; the addition is not associative
 !  Easiest thing is to only let month and year be incremented by themselves
 !  This is slight overkill since year is not really a problem.
-if(omonths /= 0 .and. (oseconds /= 0 .or. ominutes /= 0 .or. ohours /= 0 .or. &
-   odays /= 0 .or. oyears /= 0)) call error_handler &
+if(omonths /= zero .and. (oseconds /= zero .or. ominutes /= zero .or. ohours /= zero .or. &
+   odays /= zero .or. oyears /= zero)) call error_handler &
    ('increment_julian: month must not be incremented with other units')
-if(oyears /= 0 .and. (oseconds /= 0 .or. ominutes /= 0 .or. ohours /= 0 .or. &
-   odays /= 0 .or. omonths /= 0)) call error_handler &
+if(oyears /= zero .and. (oseconds /= zero .or. ominutes /= zero .or. ohours /= zero .or. &
+   odays /= zero .or. omonths /= zero)) call error_handler &
    ('increment_julian: year must not be incremented with other units')
 
 !  For non-month and non-year part can just use increment_thirty
-t =  increment_thirty(time, 0, 0, odays, ohours, ominutes, oseconds)
+t =  increment_thirty(time, zero, zero, odays, ohours, ominutes, oseconds)
 
 !  For month or year increment, first convert to date
 call get_date_julian(t, cyear, cmonth, cday, chour, cminute, csecond)
 cmonth = cmonth + omonths
 cyear = cyear + oyears
 ! Check for months larger than 12 and fix
-if(cmonth > 12) then
-   dyear = (cmonth - 1) / 12 
-   cmonth = cmonth - 12 * dyear
+if(cmonth > twelve) then
+   dyear = (cmonth - INT(1,8)) / twelve 
+   cmonth = cmonth - twelve * dyear
    cyear = cyear + dyear
 end if
 
@@ -1934,26 +1969,27 @@ implicit none
 
 type(time_type) :: increment_thirty
 type(time_type), intent(in) :: time
-integer, intent(in), optional :: seconds, minutes, hours, days, months, years
-integer :: oseconds, ominutes, ohours, odays, omonths, oyears
-integer :: csecond, cday
+integer(8), intent(in), optional :: seconds, minutes, hours, days, months, years
+integer(8) :: oseconds, ominutes, ohours, odays, omonths, oyears
+integer(8) :: csecond, cday
+integer(8),parameter :: zero=0,twelve=12,thirty=30,sixty=60
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
-odays = 0; if(present(days)) odays = days
-omonths = 0; if(present(months)) omonths = months
-oyears = 0; if(present(years)) oyears = years
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
+odays = zero; if(present(days)) odays = days
+omonths = zero; if(present(months)) omonths = months
+oyears = zero; if(present(years)) oyears = years
 
 ! Increment must be positive definite
-if(oseconds < 0 .or. ominutes < 0 .or. ohours < 0 .or. odays < 0 .or. &
-   omonths < 0 .or. oyears < 0) &
+if(oseconds < zero .or. ominutes < zero .or. ohours < zero .or. odays < zero .or. &
+   omonths < zero .or. oyears < zero) &
    call error_handler('Illegal increment in increment_thirty')
 
 ! Do increment to seconds portion first
-csecond = oseconds + 60 * (ominutes + 60 * ohours)
-cday = odays + 30 * (omonths + 12 * oyears)
+csecond = oseconds + sixty * (ominutes + sixty * ohours)
+cday = odays + thirty * (omonths + twelve * oyears)
 increment_thirty = increment_time(time, csecond, cday)
 
 end function increment_thirty
@@ -1967,46 +2003,47 @@ implicit none
 
 type(time_type) :: increment_no_leap
 type(time_type), intent(in) :: time
-integer, intent(in), optional :: seconds, minutes, hours, days, months, years
-integer :: oseconds, ominutes, ohours, odays, omonths, oyears
-integer :: csecond, cminute, chour, cday, cmonth, cyear, dyear
+integer(8), intent(in), optional :: seconds, minutes, hours, days, months, years
+integer(8) :: oseconds, ominutes, ohours, odays, omonths, oyears
+integer(8) :: csecond, cminute, chour, cday, cmonth, cyear, dyear
 type(time_type) :: t
+integer(8),parameter :: zero=0,twelve=12
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
-odays = 0; if(present(days)) odays = days
-omonths = 0; if(present(months)) omonths = months
-oyears = 0; if(present(years)) oyears = years
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
+odays = zero; if(present(days)) odays = days
+omonths = zero; if(present(months)) omonths = months
+oyears = zero; if(present(years)) oyears = years
 
 ! Increment must be positive definite
-if(oseconds < 0 .or. ominutes < 0 .or. ohours < 0 .or. odays < 0 .or. &
-   omonths < 0 .or. oyears < 0) &
+if(oseconds < zero .or. ominutes < zero .or. ohours < zero .or. odays < zero .or. &
+   omonths < zero .or. oyears < zero) &
    call error_handler('Illegal increment in increment_no_leap')
 
 !  There are a number of other bad types of increments that should be
 !  prohibited here; the addition is not associative
 !  Easiest thing is to only let month and year be incremented by themselves
 !  This is slight overkill since year is not really a problem.
-if(omonths /= 0 .and. (oseconds /= 0 .or. ominutes /= 0 .or. ohours /= 0 .or. &
-   odays /= 0 .or. oyears /= 0)) call error_handler &
+if(omonths /= zero .and. (oseconds /= zero .or. ominutes /= zero .or. ohours /= zero .or. &
+   odays /= zero .or. oyears /= zero)) call error_handler &
    ('increment_no_leap: month must not be incremented with other units')
-if(oyears /= 0 .and. (oseconds /= 0 .or. ominutes /= 0 .or. ohours /= 0 .or. &
-   odays /= 0 .or. omonths /= 0)) call error_handler &
+if(oyears /= zero .and. (oseconds /= zero .or. ominutes /= zero .or. ohours /= zero .or. &
+   odays /= zero .or. omonths /= zero)) call error_handler &
    ('increment_no_leap: year must not be incremented with other units')
 
 !  For non-month and non-year part can just use increment_thirty
-t =  increment_thirty(time, 0, 0, odays, ohours, ominutes, oseconds)
+t =  increment_thirty(time, zero, zero, odays, ohours, ominutes, oseconds)
 
 !  For month or year increment, first convert to date
 call get_date_no_leap(t, cyear, cmonth, cday, chour, cminute, csecond)
 cmonth = cmonth + omonths
 cyear = cyear + oyears
 ! Check for months larger than 12 and fix
-if(cmonth > 12) then
-   dyear = (cmonth - 1) / 12 
-   cmonth = cmonth - 12 * dyear
+if(cmonth > twelve) then
+   dyear = (cmonth - INT(1,8)) / twelve 
+   cmonth = cmonth - twelve * dyear
    cyear = cyear + dyear
 end if
 
@@ -2064,16 +2101,17 @@ implicit none
 
 type(time_type) :: decrement_date
 type(time_type), intent(in) :: time
-integer, intent(in), optional :: seconds, minutes, hours, days, months, years
-integer :: oseconds, ominutes, ohours, odays, omonths, oyears
+integer(8), intent(in), optional :: seconds, minutes, hours, days, months, years
+integer(8) :: oseconds, ominutes, ohours, odays, omonths, oyears
+integer(8),parameter :: zero=0
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
-odays = 0; if(present(days)) odays = days
-omonths = 0; if(present(months)) omonths = months
-oyears = 0; if(present(years)) oyears = years
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
+odays = zero; if(present(days)) odays = days
+omonths = zero; if(present(months)) omonths = months
+oyears = zero; if(present(years)) oyears = years
 
 select case(calendar_type)
 case(THIRTY_DAY_MONTHS)
@@ -2101,23 +2139,24 @@ implicit none
 
 type(time_type) :: decrement_gregorian
 type(time_type), intent(in) :: time
-integer, intent(in), optional :: seconds, minutes, hours, days, months, years
-integer :: oseconds, ominutes, ohours, odays, omonths, oyears
-integer :: csecond, cminute, chour, cday, cmonth, cyear
+integer(8), intent(in), optional :: seconds, minutes, hours, days, months, years
+integer(8) :: oseconds, ominutes, ohours, odays, omonths, oyears
+integer(8) :: csecond, cminute, chour, cday, cmonth, cyear
+integer(8),parameter :: zero=0
 
 call error_handler('decrement_gregorian not implemented')
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
-odays = 0; if(present(days)) odays = days
-omonths = 0; if(present(months)) omonths = months
-oyears = 0; if(present(years)) oyears = years
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
+odays = zero; if(present(days)) odays = days
+omonths = zero; if(present(months)) omonths = months
+oyears = zero; if(present(years)) oyears = years
 
 
 ! Decrement must be positive definite
-if(oseconds < 0 .or. ominutes < 0 .or. ohours < 0 .or. odays < 0 .or. omonths < 0 .or. &
-   oyears < 0) call error_handler('Illegal decrement in decrement_gregorian')
+if(oseconds < zero .or. ominutes < zero .or. ohours < zero .or. odays < zero .or. omonths < zero .or. &
+   oyears < zero) call error_handler('Illegal decrement in decrement_gregorian')
 
 ! First convert time into date
 call get_date_gregorian(time, cyear, cmonth, cday, chour, cminute, csecond)
@@ -2145,37 +2184,38 @@ implicit none
 
 type(time_type) :: decrement_julian
 type(time_type), intent(in) :: time
-integer, intent(in), optional :: seconds, minutes, hours, days, months, years
-integer :: oseconds, ominutes, ohours, odays, omonths, oyears
-integer :: csecond, cminute, chour, cday, cmonth, cyear
+integer(8), intent(in), optional :: seconds, minutes, hours, days, months, years
+integer(8) :: oseconds, ominutes, ohours, odays, omonths, oyears
+integer(8) :: csecond, cminute, chour, cday, cmonth, cyear
 type(time_type) :: t
+integer(8),parameter :: zero=0
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
-odays = 0; if(present(days)) odays = days
-omonths = 0; if(present(months)) omonths = months
-oyears = 0; if(present(years)) oyears = years
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
+odays = zero; if(present(days)) odays = days
+omonths = zero; if(present(months)) omonths = months
+oyears = zero; if(present(years)) oyears = years
 
 ! Increment must be positive definite
-if(oseconds < 0 .or. ominutes < 0 .or. ohours < 0 .or. odays < 0 .or. &
-   omonths < 0 .or. oyears < 0) &
+if(oseconds < zero .or. ominutes < zero .or. ohours < zero .or. odays < zero .or. &
+   omonths < zero .or. oyears < zero) &
    call error_handler('Illegal increment in decrement_julian')
 
 !  There are a number of other bad types of decrements that should be
 !  prohibited here; the subtraction is not associative
 !  Easiest thing is to only let month and year be decremented by themselves
 !  This is slight overkill since year is not really a problem.
-if(omonths /= 0 .and. (oseconds /= 0 .or. ominutes /= 0 .or. ohours /= 0 .or. &
-   odays /= 0 .or. oyears /= 0)) call error_handler &
+if(omonths /= zero .and. (oseconds /= zero .or. ominutes /= zero .or. ohours /= zero .or. &
+   odays /= zero .or. oyears /= zero)) call error_handler &
    ('decrement_julian: month must not be decremented with other units')
-if(oyears /= 0 .and. (oseconds /= 0 .or. ominutes /= 0 .or. ohours /= 0 .or. &
-   odays /= 0 .or. omonths /= 0)) call error_handler &
+if(oyears /= zero .and. (oseconds /= zero .or. ominutes /= zero .or. ohours /= zero .or. &
+   odays /= zero .or. omonths /= zero)) call error_handler &
    ('decrement_julian: year must not be decremented with other units')
 
 !  For non-month and non-year can just use decrement_thirty
-t = decrement_thirty(time, 0, 0, odays, ohours, ominutes, oseconds)
+t = decrement_thirty(time, zero, zero, odays, ohours, ominutes, oseconds)
 
 !  For month or year decrement, first convert to date
 call get_date_julian(t, cyear, cmonth, cday, chour, cminute, csecond)
@@ -2206,26 +2246,27 @@ implicit none
 
 type(time_type) :: decrement_thirty
 type(time_type), intent(in) :: time
-integer, intent(in), optional :: seconds, minutes, hours, days, months, years
-integer :: oseconds, ominutes, ohours, odays, omonths, oyears
-integer :: csecond, cday
+integer(8), intent(in), optional :: seconds, minutes, hours, days, months, years
+integer(8) :: oseconds, ominutes, ohours, odays, omonths, oyears
+integer(8) :: csecond, cday
+integer(8),parameter :: zero=0,twelve=12,thirty=30,sixty=60
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
-odays = 0; if(present(days)) odays = days
-omonths = 0; if(present(months)) omonths = months
-oyears = 0; if(present(years)) oyears = years
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
+odays = zero; if(present(days)) odays = days
+omonths = zero; if(present(months)) omonths = months
+oyears = zero; if(present(years)) oyears = years
 
 
 ! Increment must be positive definite
-if(oseconds < 0 .or. ominutes < 0 .or. ohours < 0 .or. odays < 0 .or. &
-   omonths < 0 .or. oyears < 0) &
+if(oseconds < zero .or. ominutes < zero .or. ohours < zero .or. odays < zero .or. &
+   omonths < zero .or. oyears < zero) &
    call error_handler('Illegal decrement in decrement_thirty')
 
-csecond = oseconds + 60 * (ominutes + 60 * ohours)
-cday = odays + 30 * (omonths + 12 * oyears)
+csecond = oseconds + sixty * (ominutes + sixty * ohours)
+cday = odays + thirty * (omonths + twelve * oyears)
 decrement_thirty = decrement_time(time, csecond, cday)
 
 end function decrement_thirty
@@ -2240,37 +2281,38 @@ implicit none
 
 type(time_type) :: decrement_no_leap
 type(time_type), intent(in) :: time
-integer, intent(in), optional :: seconds, minutes, hours, days, months, years
-integer :: oseconds, ominutes, ohours, odays, omonths, oyears
-integer :: csecond, cminute, chour, cday, cmonth, cyear
+integer(8), intent(in), optional :: seconds, minutes, hours, days, months, years
+integer(8) :: oseconds, ominutes, ohours, odays, omonths, oyears
+integer(8) :: csecond, cminute, chour, cday, cmonth, cyear
 type(time_type) :: t
+integer(8),parameter :: zero=0
 
 ! Missing optionals are set to 0
-oseconds = 0; if(present(seconds)) oseconds = seconds
-ominutes = 0; if(present(minutes)) ominutes = minutes
-ohours = 0; if(present(hours)) ohours = hours
-odays = 0; if(present(days)) odays = days
-omonths = 0; if(present(months)) omonths = months
-oyears = 0; if(present(years)) oyears = years
+oseconds = zero; if(present(seconds)) oseconds = seconds
+ominutes = zero; if(present(minutes)) ominutes = minutes
+ohours = zero; if(present(hours)) ohours = hours
+odays = zero; if(present(days)) odays = days
+omonths = zero; if(present(months)) omonths = months
+oyears = zero; if(present(years)) oyears = years
 
 ! Increment must be positive definite
-if(oseconds < 0 .or. ominutes < 0 .or. ohours < 0 .or. odays < 0 .or. &
-   omonths < 0 .or. oyears < 0) &
+if(oseconds < zero .or. ominutes < zero .or. ohours < zero .or. odays < zero .or. &
+   omonths < zero .or. oyears < zero) &
    call error_handler('Illegal increment in decrement_no_leap')
 
 !  There are a number of other bad types of decrements that should be
 !  prohibited here; the subtraction is not associative
 !  Easiest thing is to only let month and year be decremented by themselves
 !  This is slight overkill since year is not really a problem.
-if(omonths /= 0 .and. (oseconds /= 0 .or. ominutes /= 0 .or. ohours /= 0 .or. &
-   odays /= 0 .or. oyears /= 0)) call error_handler &
+if(omonths /= zero .and. (oseconds /= zero .or. ominutes /= zero .or. ohours /= zero .or. &
+   odays /= zero .or. oyears /= zero)) call error_handler &
    ('decrement_no_leap: month must not be decremented with other units')
-if(oyears /= 0 .and. (oseconds /= 0 .or. ominutes /= 0 .or. ohours /= 0 .or. &
-   odays /= 0 .or. omonths /= 0)) call error_handler &
+if(oyears /= zero .and. (oseconds /= zero .or. ominutes /= zero .or. ohours /= zero .or. &
+   odays /= zero .or. omonths /= zero)) call error_handler &
    ('decrement_no_leap: year must not be decremented with other units')
 
 !  For non-month and non-year can just use decrement_thirty
-t = decrement_thirty(time, 0, 0, odays, ohours, ominutes, oseconds)
+t = decrement_thirty(time, zero, zero, odays, ohours, ominutes, oseconds)
 
 !  For month or year decrement, first convert to date
 call get_date_no_leap(t, cyear, cmonth, cday, chour, cminute, csecond)
@@ -2362,7 +2404,7 @@ implicit none
 
 integer :: days_in_month_julian
 type(time_type), intent(in) :: time
-integer :: seconds, minutes, hours, day, month, year
+integer(8) :: seconds, minutes, hours, day, month, year
 
 call get_date_julian(time, year, month, day, hours, minutes, seconds)
 days_in_month_julian = days_per_month(month)
@@ -2394,7 +2436,7 @@ implicit none
 
 integer :: days_in_month_no_leap
 type(time_type), intent(in) :: time
-integer :: seconds, minutes, hours, day, month, year
+integer(8) :: seconds, minutes, hours, day, month, year
 
 call get_date_no_leap(time, year, month, day, hours, minutes, seconds)
 days_in_month_no_leap= days_per_month(month)
@@ -2475,7 +2517,7 @@ implicit none
 
 logical :: leap_year_julian
 type(time_type), intent(in) :: time
-integer :: seconds, minutes, hours, day, month, year
+integer(8) :: seconds, minutes, hours, day, month, year
 
 call get_date(time, year, month, day, hours, minutes, seconds)
 leap_year_julian = ((year / 4 * 4) == year)
@@ -2557,7 +2599,7 @@ implicit none
 
 type(time_type) :: length_of_year_thirty
 
-length_of_year_thirty = set_time(0, 360)
+length_of_year_thirty = set_time(INT(0,8), INT(360,8))
 
 end function length_of_year_thirty
 
@@ -2569,7 +2611,7 @@ implicit none
 
 type(time_type) :: length_of_year_gregorian
 
-length_of_year_gregorian = set_time(0, 0)
+length_of_year_gregorian = set_time(INT(0,8), INT(0,8))
 
 call error_handler('length_of_year_gregorian not implemented')
 
@@ -2583,7 +2625,7 @@ implicit none
 
 type(time_type) :: length_of_year_julian
 
-length_of_year_julian = set_time((24 / 4) * 60 * 60, 365)
+length_of_year_julian = set_time(INT((24 / 4) * 60 * 60,8), INT(365,8))
 
 end function length_of_year_julian
 
@@ -2595,7 +2637,7 @@ implicit none
 
 type(time_type) :: length_of_year_no_leap
 
-length_of_year_no_leap = set_time(0, 365)
+length_of_year_no_leap = set_time(INT(0,8), INT(365,8))
 
 end function length_of_year_no_leap
 
@@ -2819,7 +2861,8 @@ subroutine print_time (time,str,unit)
 type(time_type)  , intent(in) :: time
 character (len=*), intent(in), optional :: str
 integer          , intent(in), optional :: unit
-integer :: s,d, ns,nd, unit_in
+integer :: ns,nd, unit_in
+integer(8) :: s,d
 character(len=13) :: fmt
 
 ! prints the time to standard output (or optional unit) as days and seconds
@@ -2870,7 +2913,7 @@ subroutine print_date (time,str,unit)
 type(time_type)  , intent(in) :: time
 character (len=*), intent(in), optional :: str
 integer          , intent(in), optional :: unit
-integer :: y,mo,d,h,m,s, unit_in
+integer(8) :: y,mo,d,h,m,s, unit_in
 character(len=9) :: mon
 
 ! prints the time to standard output (or optional unit) as a date

@@ -404,7 +404,7 @@ enddo
 ! shift start year to 1981 (start date 1981.12.15):
         y=y-88+1981 ! y was 2-digit year
 ! now convert to time_type format and store:
-        sf6_rate(j)%Time=set_date(y, m, d)
+        sf6_rate(j)%Time=set_date(INT(y,8), INT(m,8), INT(d,8))
       end do
       call close_file(unit) 
 

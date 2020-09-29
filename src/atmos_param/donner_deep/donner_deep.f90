@@ -283,7 +283,7 @@ real :: diagnostics_pressure_cutoff =  5000.
                                    ! printed on model levels with 
                                    ! pressures greater than this value 
                                    ! [ Pa ]
-integer, dimension(6) :: diagnostics_start_time= (/ 0,0,0,0,0,0 /)
+integer(8), dimension(6) :: diagnostics_start_time= (/ 0,0,0,0,0,0 /)
                                    ! integer specification of time for 
                                    ! column diagnostics to be activated
                                    ! [year, month, day, hour, min, sec ]
@@ -755,7 +755,7 @@ logical, dimension(:), intent(in), optional  :: tracers_in_donner
 !  local variables:
 
       integer                 :: unit, ierr, io
-      integer                 :: secs, days
+      integer(8)              :: secs, days
       integer                 :: dum
   
 !-------------------------------------------------------------------
