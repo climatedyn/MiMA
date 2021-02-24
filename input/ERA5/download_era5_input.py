@@ -12,6 +12,8 @@ parser.add_argument('-g',dest='grid',default=['1.0','1.0'],nargs=2,help="Select 
 parser.add_argument('--o3',dest='ozone',action='store_true',help="also download ozone data.")
 parser.add_argument('-a',dest='avg',action='store_true',help="DO NOT average over all downloaded timesteps. Passed on to convert_era5_to_input.py.")
 parser.add_argument('-E',dest='ensembles',default=None,help="Create multiple input files for ensemble runs. Passed on to create_ensembles.py.")
+parser.add_argument('-D',dest='download_only',action='store_true',help="Only download data, but don't do any further operations. Helpfull if node with internet access does not have enough memory.")
+parser.add_argument('-A',dest='analysis_only',action='store_true',help="Only perform analysis steps. Assumens that all data has been downloaded (for instance, with -D flag).")
 args = parser.parse_args()
 
 in_dates = {'sdate':args.start_date,'edate':args.end_date}
@@ -66,63 +68,76 @@ file2d = 'download_2d.{0}.nc'.format(postfix)
 file3d_ml = file3d.replace('levels','ml')
 file3d_pl = file3d.replace('levels','pl')
 
-if args.end_date is None:
-    print('DOWNLOADING 2D DATA FOR DATE {0}.'.format(args.start_date))
-else:
-    print('DOWNLOADING 2D DATA BETWEEN {0} AND {1}.'.format(args.start_date,args.end_date))
-c.retrieve(
-    'reanalysis-era5-single-levels',
-    {
-        'product_type'  : 'reanalysis',
-        'variable'      : vars2d,
-        'date'          : date_str_pl,
-        'time'          : '00',
-        'format'        : 'netcdf',
-        'grid'          : args.grid,
-    },
-    file2d)
+if not args.analysis_only:
+    if args.end_date is None:
+        print('DOWNLOADING 2D DATA FOR DATE {0}.'.format(args.start_date))
+    else:
+        print('DOWNLOADING 2D DATA BETWEEN {0} AND {1}.'.format(args.start_date,args.end_date))
+    c.retrieve(
+        'reanalysis-era5-single-levels',
+        {
+            'product_type'  : 'reanalysis',
+            'variable'      : vars2d,
+            'date'          : date_str_pl,
+            'time'          : '00',
+            'format'        : 'netcdf',
+            'grid'          : args.grid,
+        },
+        file2d)
 
-if args.end_date is None:
-    print('DOWNLOADING 3D DATA FOR DATE {0}.'.format(args.start_date))
-else:
-    print('DOWNLOADING 3D DATA BETWEEN {0} AND {1}.'.format(args.start_date,args.end_date))
-print('  FIRST, ON MODEL LEVELS')
-c.retrieve(
-    'reanalysis-era5-complete',
-    {
-        'class'         : 'ea',
-        'type'          : 'an',
-        'stream'        : 'oper',
-        'expver'        : '1',
-        'param'         : params,
-        'levelist'      : m_levs,
-        'levtype'       : 'ml',
-        'date'          : date_str_ml,
-        'time'          : '00:00:00',
-        'format'        : 'netcdf',
-        'grid'          : args.grid,
-    },
-    file3d_ml)
-print('    CONVERTING MODEL LEVELS TO PRESSURE LEVELS')
-subprocess.run(['python','ecmwf_hybrid_to_pressure.py','-A',file3d_ml,'-S',file2d,'-o',file3d_ml])
+    if args.end_date is None:
+        print('DOWNLOADING 3D DATA FOR DATE {0}.'.format(args.start_date))
+    else:
+        print('DOWNLOADING 3D DATA BETWEEN {0} AND {1}.'.format(args.start_date,args.end_date))
+    print('  FIRST, ON MODEL LEVELS')
+    c.retrieve(
+        'reanalysis-era5-complete',
+        {
+            'class'         : 'ea',
+            'type'          : 'an',
+            'stream'        : 'oper',
+            'expver'        : '1',
+            'param'         : params,
+            'levelist'      : m_levs,
+            'levtype'       : 'ml',
+            'date'          : date_str_ml,
+            'time'          : '00:00:00',
+            'format'        : 'netcdf',
+            'grid'          : args.grid,
+        },
+        file3d_ml)
 
-print('  SECOND, ON PRESSURE LEVELS')
-c.retrieve(
-    'reanalysis-era5-pressure-levels',
-    {
-        'product_type'  : 'reanalysis',
-        'variable'      : vars3d,
-        'pressure_level': p_levs,
-        'date'          : date_str_pl,
-        'time'          : '00',
-        'format'        : 'netcdf',
-        'grid'          : args.grid,
-    },
-    file3d_pl)
+if not args.download_only:
+    print('    CONVERTING MODEL LEVELS TO PRESSURE LEVELS')
+    command = ['python','ecmwf_hybrid_to_pressure.py','-A',file3d_ml,'-S',file2d,'-o',file3d_ml]
+    print(' '.join(command))
+    subprocess.run(['python','ecmwf_hybrid_to_pressure.py','-A',file3d_ml,'-S',file2d,'-o',file3d_ml])
 
-file3d_mix = file3d.replace('.levels','')
+if not args.analysis_only:
+    print('  SECOND, ON PRESSURE LEVELS')
+    c.retrieve(
+        'reanalysis-era5-pressure-levels',
+        {
+            'product_type'  : 'reanalysis',
+            'variable'      : vars3d,
+            'pressure_level': p_levs,
+            'date'          : date_str_pl,
+            'time'          : '00',
+            'format'        : 'netcdf',
+            'grid'          : args.grid,
+        },
+        file3d_pl)
+
+if args.download_only:
+    import sys
+    print('ALL DATA DOWNLOADED. EXITING (-D FLAG SET).')
+    sys.exit(0)
+
+file3d_mix = file3d.replace('_levels','')
 print('MERGING MODEL LEVEL AND PRESSURE LEVEL DATA INTO ONE FILE.')
-subprocess.run(['python','mix_ml_pl.py','--ml',file3d_ml,'--pl',file3d_pl,'-o',file3d_mix])
+command = ['python','mix_ml_pl.py','--ml',file3d_ml,'--pl',file3d_pl,'-o',file3d_mix]
+print(' '.join(command))
+subprocess.run(command)
 
 init_conds_file = file2d.replace('download_2d','initial_conditions')
 tsurf_file = file2d.replace('download_2d','tsurf')
@@ -134,16 +149,22 @@ if args.ozone:
     ozone_file = file2d.replace('download_2d','ozone')
     arglist = arglist + ['--o3-out',ozone_file]
 print('CREATING INITIAL CONDITIONS.')
-subprocess.run(['python']+arglist)
+command = ['python']+arglist
+print(' '.join(command))
+subprocess.run(command)
 
 if args.ensembles is not None:
     arglist = ['create_ensembles.py','-i',init_conds_file,'-t',tsurf_file,'-n',args.ensembles]
     if args.ozone:
         arglist = arglist + ['-O',ozone_file]
     print('CREATING ENSEMBLE INITIAL CONDITIONS.')
-    subprocess.run(['python']+arglist)
+    command = ['python']+arglist
+    print(' '.join(command))
+    subprocess.run(command)
 
 # clean up helper files
-subprocess.run(['rm',file3d_pl,file3d_ml,file2d,file3d_mix])
+print('IF ALL WENT WELL, YOU CAN CLEANUP INTERMEDIATE FILES BY RUNNING')
+print('rm',file3d_pl,file3d_ml,file2d,file3d_mix)
+#isubprocess.run(['rm',file3d_pl,file3d_ml,file2d,file3d_mix])
 print('DONE.')
 
