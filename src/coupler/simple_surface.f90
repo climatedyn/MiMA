@@ -99,7 +99,7 @@ real ::   z_ref_heat      = 2.,       &
 	  deltaT           = 40.,     &
           qflux_amp        = 30.,     & !mj
           qflux_width      = 16.        !mj
-!cig
+!cig 
 real ::   mom_roughness_land  = 1., &
 	  q_roughness_land  = 1.       
 
@@ -992,7 +992,7 @@ if ( do_local_heating ) then
    do j=1,ngauss
       if ( hamp(j) .ne. 0. .and. pcenter(j) .lt. 0. ) then
          do_surface_heating = .true.
-         print*,'PERFORMING SURFACE HEATING'
+         !print*,'PERFORMING SURFACE HEATING'
       endif
    enddo
 endif
@@ -1014,7 +1014,8 @@ subroutine diag_field_init ( Time, atmos_axes )
   character(len=6) :: label_zm, label_zh
   real, dimension(2) :: trange = (/  100., 400. /), &
                         vrange = (/ -400., 400. /), &
-                        frange = (/ -0.01, 1.01 /)
+                        frange = (/ -0.01, 1.01 /), &
+                        erange = (/ -0.002,0.002/)  ! mj
 !-----------------------------------------------------------------------
 !  initializes diagnostic fields that may be output from this module
 !  (the id numbers may be referenced anywhere in this module)
@@ -1100,7 +1101,8 @@ subroutine diag_field_init ( Time, atmos_axes )
 
    id_q_flux     = &
    register_diag_field ( mod_name, 'evap',       atmos_axes, Time, &
-                        'evaporation rate',        'kg/m2/s'  )
+                        'evaporation rate',        'kg/m2/s', &
+                        range=erange )
 
    id_o_flux     = &
    register_diag_field (mod_name, 'oflx',        atmos_axes, Time, &
@@ -1155,7 +1157,8 @@ subroutine diag_field_init ( Time, atmos_axes )
                         'ref height interp factor for moisture','none' )
    id_albedo      = &
    register_diag_field ( mod_name, 'albedo',      atmos_axes, Time,     &
-                        'surface albedo','none' )
+                        'surface albedo','none', &
+                         range=(/0.0,1.0/) )            !mj
    id_heat        = & !mj
    register_diag_field ( mod_name, 'heat_capacity',atmos_axes, Time,     &
                         'mixed layer heat capacity','none' )
