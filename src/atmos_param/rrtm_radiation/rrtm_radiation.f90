@@ -771,7 +771,8 @@
           endif
 
           lwijk   = reshape(hr(:,sk:1:-1),(/ si/lonstep,sj,sk /))*daypersec
-          olrijk  = reshape(uflx(:,sk+1),(/ si/lonstep,sj /))
+          ! dflx at TOA is zero, but it doesn't hurt to include it to compute OLR
+          olrijk  = reshape(uflx(:,sk+1) - dflx(:,sk+1),(/ si/lonstep,sj /))
 
 !---------------------------------------------------------------------------------------------------------------
           ! get radiation
