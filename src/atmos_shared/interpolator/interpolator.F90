@@ -538,8 +538,9 @@ do i = 1, ndim
         endif
 
         do n = 1, ntime
-!Assume that the times in the data file correspond to days only.
-
+!Assume that the time units in the data file correspond to days only.
+           dy = INT(time_in(n))
+           sc = INT( (time_in(n) - dy)*86400 )
 
           if (fileyr == 0) then
 !! RSH NOTE:
@@ -547,7 +548,7 @@ do i = 1, ndim
 !! time_interp_list with the optional argument modtime=YEAR, so that
 !! the time that is needed in time_slice is the displacement into the
 !! year, not the displacement from a base_time.
-            clim_type%time_slice(n) = set_time(0,INT(time_in(n))) 
+            clim_type%time_slice(n) = set_time(sc,dy) 
           else
             
 !--------------------------------------------------------------------
@@ -568,8 +569,8 @@ do i = 1, ndim
 !---------------------------------------------------------------------
 !    no calendar conversion needed.
 !---------------------------------------------------------------------
-              clim_type%time_slice(n) = set_time(0,INT(time_in(n))) + &
-                                        base_time
+              clim_type%time_slice(n) = set_time(sc,dy) + &
+                                        base_time ! set_time(seconds,days) + base_time
 
 !---------------------------------------------------------------------
 !    convert file times from noleap to julian.
