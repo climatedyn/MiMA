@@ -114,13 +114,16 @@
         logical            :: do_read_radiation=.false.       ! read SW and LW radiation in the atmosphere from
                                                               !  external file? Surface fluxes are still computed
         character(len=256) :: radiation_file='radiation'      !  file name to read radiation
+        character(len=256) :: radiation_name='radiation'      !  variable name inside the file
         real(kind=rb)      :: rad_missing_value=-1.e19        !   missing value in input files:
                                                               !    if <0, replace everything below this value with 0
                                                               !    if >0, replace everything above this value with 0
         logical            :: do_read_sw_flux=.false.         ! read SW surface fluxes from external file?
         character(len=256) :: sw_flux_file='sw_flux'          !  file name to read fluxes
+        character(len=256) :: sw_flux_name='sw_flux'          !  variable name inside the file
         logical            :: do_read_lw_flux=.false.         ! read LW surface fluxes from external file?
         character(len=256) :: lw_flux_file='lw_flux'          !  file name to read fluxes
+        character(len=256) :: lw_flux_name='lw_flux'          !  variable name inside the file
         logical            :: do_read_ozone=.false.           ! read ozone from an external file?
                                                               !  this is the only way to get ozone into the model
         character(len=256) :: ozone_file='ozone'              !  file name of ozone file to read
@@ -150,7 +153,7 @@
         real(kind=rb)      :: co2ppmv=300.                    ! CO2 ppmv concentration
         logical            :: do_fixed_water = .false.        ! feed fixed value for water vapor to RRTM?
         real(kind=rb)      :: fixed_water = 2.e-06            ! if so, what value? [kg/kg]
-        real(kind=rb)      :: fixed_water_pres = 100.e02      ! if so, above which pressure level? [hPa]
+        real(kind=rb)      :: fixed_water_pres = 100.e02      ! if so, above which pressure level? [Pa]
         real(kind=rb)      :: fixed_water_lat  = 90.          ! if so, equatorward of which latitude? [deg]
         logical            :: do_zm_tracers=.false.           ! Feed only the zonal mean of tracers to radiation
 
@@ -194,8 +197,8 @@
              &ozone_file, ozone_name, scale_ozone, o3_val, do_use_ozone_tracer, &
              &do_read_h2o, h2o_file, h2o_name, ch4_val, n2o_val, o2_val, &
              &cfc11_val, cfc12_val, cfc22_val, ccl4_val, &
-             &do_read_radiation, radiation_file, rad_missing_value, &
-             &do_read_sw_flux, sw_flux_file, do_read_lw_flux, lw_flux_file,&
+             &do_read_radiation, radiation_file, radiation_name, rad_missing_value, &
+             &do_read_sw_flux, sw_flux_file, sw_flux_name, do_read_lw_flux, lw_flux_file, lw_flux_name,&
              &h2o_lower_limit,temp_lower_limit,temp_upper_limit,co2ppmv, &
              &do_fixed_water,fixed_water,fixed_water_pres,fixed_water_lat, &
              &slowdown_rad, &
@@ -229,7 +232,7 @@
                                       &mpp_pe, mpp_root_pe, close_file, &
                                       &write_version_number, stdlog, &
                                       &error_mesg, NOTE, WARNING, FATAL
-          use time_manager_mod, only: time_type
+          use time_manager_mod, only: time_type, print_time
 ! Local variables
           implicit none
 
@@ -384,7 +387,10 @@
           endif !run RRTM?
 
           if(do_read_radiation)then
-             call interpolator_init (rad_interp, trim(radiation_file)//'.nc', lonb, latb, data_out_of_bounds=(/CONSTANT/))
+             if ( solday .gt. 0 ) then
+                solday = -1
+             endif
+             call interpolator_init (rad_interp, trim(radiation_file)//'.nc', lonb, latb, data_out_of_bounds=(/ZERO/))
           endif
 
           if(do_read_sw_flux)then
@@ -487,7 +493,7 @@
           use rrtm_astro, only:      compute_zenith,use_dyofyr,solr_cnst,&
                                      solrad,solday,equinox_day
           use rrtm_vars
-          use time_manager_mod,only: time_type,get_time,set_time
+          use time_manager_mod,only: time_type,get_time,set_time,print_time
           use interpolator_mod,only: interpolator
           use tracer_manager_mod,only: get_tracer_index
           use field_manager_mod,only: MODEL_ATMOS
@@ -583,9 +589,9 @@
           end if
 ! input files: only deal with case where we don't need to call radiation at all
           if(do_read_radiation .and. do_read_sw_flux .and. do_read_lw_flux) then
-             call interpolator( rad_interp, Time_loc, p_half, tdt_rrtm, trim(radiation_file))
-             call interpolator( fsw_interp, Time_loc, flux_sw, trim(sw_flux_file))
-             call interpolator( flw_interp, Time_loc, flux_lw, trim(lw_flux_file))
+             call interpolator( rad_interp, Time_loc, p_half, tdt_rrtm, trim(radiation_name))
+             call interpolator( fsw_interp, Time_loc, flux_sw, trim(sw_flux_name))
+             call interpolator( flw_interp, Time_loc, flux_lw, trim(lw_flux_name))
              ! there might be missing values due to surface topography, which would
              !  put in weird values. This is still work in progress, and cannot be
              !  used safely!
@@ -777,7 +783,7 @@
 !---------------------------------------------------------------------------------------------------------------
           ! get radiation
           if( do_read_radiation ) then
-             call interpolator( rad_interp, Time_loc, p_half, tdt_rrtm, trim(radiation_file))
+             call interpolator( rad_interp, Time_loc, p_half, tdt_rrtm, trim(radiation_name))
           else
 ! interpolate back onto GCM grid (latitude is kept the same due to parallelisation)
              dlon=1./lonstep
@@ -830,10 +836,10 @@
                 enddo
              enddo
              if ( do_read_sw_flux )then
-                call interpolator( fsw_interp, Time_loc, flux_sw, trim(sw_flux_file))
+                call interpolator( fsw_interp, Time_loc, flux_sw, trim(sw_flux_name))
              endif
              if ( do_read_lw_flux )then
-                call interpolator( flw_interp, Time_loc, flux_lw, trim(lw_flux_file))
+                call interpolator( flw_interp, Time_loc, flux_lw, trim(lw_flux_name))
              endif
 
              ! store between radiation steps
