@@ -579,7 +579,7 @@ real, dimension(:,:,:),  intent(out),  optional  :: diffm, difft
          call rrtm_radiation_init(axes,Time,id*jd,kd,lonb,latb)
       endif
       
-      if(do_local_heating) call local_heating_init(axes, Time)
+      if(do_local_heating) call local_heating_init(axes, Time, lonb, latb)
 
 !-----------------------------------------------------------------------
 !    initialize atmos_tracer_driver_mod.
@@ -1293,7 +1293,7 @@ real,  dimension(:,:,:), intent(out)  ,optional :: diffm, difft
 !    artificial local heating if required
 !----------------------------------------------------------------------
       if(do_local_heating) then
-        call local_heating(is,js,Time,lon,lat,p_full,tdt)
+        call local_heating(is,js,Time,lon,lat,p_full,p_half,tdt)
       endif
 
 !----------------------------------------------------------------------
