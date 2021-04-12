@@ -31,7 +31,8 @@ use time_manager_mod, only: time_type, get_date, set_date, set_time, &
                             operator(+), operator(-), operator(>),   &
                             operator(<), operator( // ), operator( / ),  &
                             operator(>=), operator(<=), operator( * ), &
-                            operator(==)
+                            operator(==), &
+                            print_time
 
 use          fms_mod, only: write_version_number, &
                             error_mesg, FATAL
@@ -581,7 +582,12 @@ type(time_type) :: T, T1, T2, Ts, Te, Td, Period, Time_mod
 
 ! time falls before starting list value
   else if ( T < Ts ) then
-     if (mtime == NONE) call error_handler ('time before range of list')
+     if (mtime == NONE)then
+        call print_time(Timelist(1),'First time in file:')
+        call print_time(T,'Model time:')
+        call print_time(Timelist(n),'Last time in file:')
+        call error_handler ('time before range of list')
+     endif
      Td = Te-Ts
      weight = 1. - ((Ts-T) // (Period-Td))
      index1 = n
@@ -589,7 +595,12 @@ type(time_type) :: T, T1, T2, Ts, Te, Td, Period, Time_mod
 
 ! time falls after ending list value
   else if ( T > Te ) then
-     if (mtime == NONE) call error_handler ('time after range of list')
+     if (mtime == NONE)then
+        call print_time(Timelist(1),'First time in file:')
+        call print_time(T,'Model time:')
+        call print_time(Timelist(n),'Last time in file:')
+        call error_handler ('time after range of list')
+     endif
      Td = Te-Ts
      weight = (T-Te) // (Period-Td)
      index1 = n
