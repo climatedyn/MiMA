@@ -161,10 +161,11 @@ real    :: damping_coeff       = 1.15740741e-4, & ! (one tenth day)**-1
            p_press             = .1,  &
            p_sigma             = .3,  &
            exponent            = 2.5, &
-         ocean_topog_smoothing = .93, &
+           ocean_topog_smoothing = .93, &
            initial_sphum       = 0.0, &
-     reference_sea_level_press =  101325. , &
-           water_correction_limit = 0.e2 !mj
+           reference_sea_level_press =  101325. , &
+           water_correction_limit = 0.e2, & !mj only correct water mass below this pressure
+           random_perturbation = 0.0        !mj add random temperature perturbation for ensembles
 
 !epg+ray: this next namelist variable allows you to upload initial conditions
 !         u,v,T, ps, and q must be specified (as: ucomp, vcomp, temp, ps, and sphum, respecitively)
@@ -190,7 +191,8 @@ namelist /spectral_dynamics_nml/ use_virtual_temperature, damping_option,       
                                  p_press, p_sigma, exponent, ocean_topog_smoothing, initial_sphum,   &
                                  valid_range_t, eddy_sponge_coeff, zmu_sponge_coeff, zmv_sponge_coeff, &
                                  print_interval, num_steps,                                          &
-                                 water_correction_limit, specify_initial_conditions, initial_file     !mj + epg
+                                 water_correction_limit, specify_initial_conditions, initial_file,   &  !mj + epg
+                                 random_perturbation                                                    !mj
 
 contains
 
@@ -489,6 +491,8 @@ character(len=4) :: ch1,ch2,ch3,ch4,ch5,ch6
 type(interpolate_type) :: init_conds
 real, allocatable,dimension(:,:,:) :: lmptmp
 real, allocatable,dimension(:,:,:) :: p_half,p_full,ln_p_full,ln_p_half
+! mj: random perturbation
+real, allocatable,dimension(:,:,:) :: rtmp
 ! ------
 
 file = 'INPUT/spectral_dynamics.res.nc'
@@ -542,6 +546,18 @@ if(file_exist(trim(file))) then
     call read_data(trim(file), 'ug',   ug(:,:,:,nt), grid_domain, timelevel=nt)
     call read_data(trim(file), 'vg',   vg(:,:,:,nt), grid_domain, timelevel=nt)
     call read_data(trim(file), 'tg',   tg(:,:,:,nt), grid_domain, timelevel=nt)
+    !mj random perturbation for ensembles
+    if ( random_perturbation .ne. 0.0 ) then
+       if ( nt .eq. 1 ) then
+          if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') ' Adding random temperature perturbation.'
+          allocate(rtmp(size(tg,1),size(tg,2),size(tg,3)))
+       endif
+       call RANDOM_SEED()
+       call RANDOM_NUMBER(rtmp)
+       tg(:,:,:,nt) = tg(:,:,:,nt) + random_perturbation*rtmp
+       call trans_grid_to_spherical(tg(:,:,:,nt),ts(:,:,:,nt))
+    endif
+    !jm
     call read_data(trim(file), 'psg', psg(:,:,  nt), grid_domain, timelevel=nt)
     do ntr = 1,num_tracers
       tr_name = trim(tracer_attributes(ntr)%name)
@@ -578,7 +594,18 @@ else
           vors(:,:,:,1), divs(:,:,:,1), ts(:,:,:,1), ln_ps(:,:,1), ug(:,:,:,1), vg(:,:,:,1),    &
           tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions)
   endif
-   
+
+  !mj random perturbation for ensembles
+  if ( random_perturbation .ne. 0.0 ) then
+     if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') ' Adding random temperature perturbation.'
+     allocate(rtmp(size(tg,1),size(tg,2),size(tg,3)))
+     call RANDOM_SEED()
+     call RANDOM_NUMBER(rtmp)
+     tg(:,:,:,1) = tg(:,:,:,1) + random_perturbation*rtmp
+     call trans_grid_to_spherical(tg(:,:,:,1),ts(:,:,:,1))
+  endif
+     
+     
 
   vors (:,:,:,2) = vors (:,:,:,1)
   divs (:,:,:,2) = divs (:,:,:,1)

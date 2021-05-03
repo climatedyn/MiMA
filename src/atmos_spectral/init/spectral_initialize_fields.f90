@@ -31,7 +31,7 @@ include 'netcdf.inc'
 contains
 
 !-------------------------------------------------------------------------------------------------
-subroutine spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, random_perturbation, &
+subroutine spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
                         surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, lonb, latb, initial_file, Time, init_conds)
   !mj use interpolator for initial conditions
   use interpolator_mod, only: interpolate_type,interpolator_init,CONSTANT,interpolator
@@ -40,8 +40,6 @@ real,    intent(in) :: reference_sea_level_press
 logical, intent(in) :: triang_trunc
 integer, intent(in) :: choice_of_init
 real,    intent(in) :: initial_temperature
-! mj random perturbation for ensemble runs
-real,    intent(in) :: random_perturbation
 
 real,    intent(in),  dimension(:,:    ) :: surf_geopotential
 complex, intent(out), dimension(:,:    ) :: ln_ps
@@ -66,8 +64,6 @@ integer :: ms, me, ns, ne, is, ie, js, je, num_levels
 ! mj: generalisation to use interpolator capabilities
 real, allocatable,dimension(:,:,:) :: lmptmp
 real, allocatable,dimension(:,:,:) :: p_half,ln_p_half,p_full,ln_p_full
-! mj: random perturbation
-real, allocatable,dimension(:,:,:) :: rtmp
 ! --------
 
 if(.not.entry_to_logfile_done) then
@@ -141,7 +137,7 @@ if (choice_of_init == 3) then !initialize with prescribed input
    ln_psg = log(psg(:,:))
    ! use psg to compute p_half
    call pressure_variables(p_half, ln_p_half, p_full, ln_p_full, psg)
-   if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a,f6.1,a)') 'model top at ',minval(p_full),'Pa.'
+   if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a,f6.1,a)') ' Model top at ',minval(p_full),'Pa.'
    ! forget about all other pressure variables which we don't need
    deallocate(ln_p_half,p_full,ln_p_full)
    ! interpolate onto full 3D field
@@ -151,19 +147,11 @@ if (choice_of_init == 3) then !initialize with prescribed input
 
    ! and lastly, let us know that it worked!
    if(mpp_pe() == mpp_root_pe()) then
-      print *, 'initial dynamical fields read in from '//trim(initial_file)//'.nc'
+      print *, 'Initial dynamical fields read in from '//trim(initial_file)//'.nc'
    endif
 
 endif
 
-!mj random perturbation for ensembles
-if ( random_perturbation .ne. 0.0 ) then
-   allocate(rtmp(size(tg,1),size(tg,2),size(tg,3)))
-   if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') 'Adding random temperature perturbation.'
-   call random_seed()
-   call random_number(rtmp)
-   tg = tg + random_perturbation*rtmp
-endif
 
 !  initial spectral fields (and spectrally-filtered) grid fields
 
@@ -182,7 +170,7 @@ call trans_spherical_to_grid(divs, divg)
 !  compute and print mean surface pressure
 global_mean_psg = area_weighted_global_mean(psg)
 if(mpp_pe() == mpp_root_pe()) then
-  print '("mean surface pressure=",f9.4," mb")',.01*global_mean_psg
+  print '("  Mean surface pressure=",f9.4," mb")',.01*global_mean_psg
 endif
 
 return

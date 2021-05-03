@@ -38,11 +38,9 @@ character(len=128), parameter :: tagname = &
 public :: spectral_init_cond
 
 real :: initial_temperature=264.
-!mj add random perturbation for ensemble runs
-real :: random_perturbation= 0.
 
 
-namelist / spectral_init_cond_nml / initial_temperature, random_perturbation
+namelist / spectral_init_cond_nml / initial_temperature
 
 Contains
 
@@ -99,10 +97,10 @@ call get_topography(topography_option, ocean_topog_smoothing, surf_geopotential,
 call press_and_geopot_init(pk, bk, use_virtual_temperature, vert_difference_option, surf_geopotential)
 
 if (choice_of_init .eq. 3) then
-   call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, random_perturbation, &
+   call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
         surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, lonb, latb, initial_file, Time, init_conds)
 else
-   call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, random_perturbation, &
+   call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
         surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg)
 endif
 
