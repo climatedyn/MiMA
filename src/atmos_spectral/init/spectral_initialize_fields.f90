@@ -1,6 +1,6 @@
 module spectral_initialize_fields_mod
 
-! epg: we added "error_mesg, FATAL, and file_exist" here so that we can report an error if 
+! epg: we added "error_mesg, FATAL, and file_exist" here so that we can report an error if
 !      the initial_conditions.nc file is missing.
 use              fms_mod, only: mpp_pe, mpp_root_pe, write_version_number, file_exist, FATAL, error_mesg
 
@@ -31,7 +31,7 @@ include 'netcdf.inc'
 contains
 
 !-------------------------------------------------------------------------------------------------
-subroutine spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
+subroutine spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, random_perturbation, &
                         surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, lonb, latb, initial_file, Time, init_conds)
   !mj use interpolator for initial conditions
   use interpolator_mod, only: interpolate_type,interpolator_init,CONSTANT,interpolator
@@ -40,6 +40,8 @@ real,    intent(in) :: reference_sea_level_press
 logical, intent(in) :: triang_trunc
 integer, intent(in) :: choice_of_init
 real,    intent(in) :: initial_temperature
+! mj random perturbation for ensemble runs
+real,    intent(in) :: random_perturbation
 
 real,    intent(in),  dimension(:,:    ) :: surf_geopotential
 complex, intent(out), dimension(:,:    ) :: ln_ps
@@ -63,7 +65,9 @@ integer :: ms, me, ns, ne, is, ie, js, je, num_levels
 !      code was initially developed by Lorenzo Polvani; hence lmp
 ! mj: generalisation to use interpolator capabilities
 real, allocatable,dimension(:,:,:) :: lmptmp
-real, allocatable,dimension(:,:,:) :: p_half,ln_p_half,p_full,ln_p_full 
+real, allocatable,dimension(:,:,:) :: p_half,ln_p_half,p_full,ln_p_full
+! mj: random perturbation
+real, allocatable,dimension(:,:,:) :: rtmp
 ! --------
 
 if(.not.entry_to_logfile_done) then
@@ -76,7 +80,7 @@ call get_grid_domain(is, ie, js, je)
 call get_spec_domain(ms, me, ns, ne)
 allocate(ln_psg(is:ie, js:je))
 
-initial_sea_level_press = reference_sea_level_press  
+initial_sea_level_press = reference_sea_level_press
 
 ug      = 0.
 vg      = 0.
@@ -144,14 +148,20 @@ if (choice_of_init == 3) then !initialize with prescribed input
    call interpolator(init_conds, Time, p_half, ug, 'ucomp', is, js)
    call interpolator(init_conds, Time, p_half, vg, 'vcomp', is, js)
    call interpolator(init_conds, Time, p_half, tg, 'temp', is, js)
- 
+
    ! and lastly, let us know that it worked!
    if(mpp_pe() == mpp_root_pe()) then
       print *, 'initial dynamical fields read in from initial_conditions.nc'
    endif
- 
+
 endif
 
+!mj random perturbation for ensembles
+if ( random_perturbation .ne. 0.0 ) then
+  allocate(rtmp(size(tg,1),size(tg,2),size(tg,3)))
+  call random_number(rtmp)
+  tg = tg + random_perturbation*rtmp
+endif
 
 !  initial spectral fields (and spectrally-filtered) grid fields
 
