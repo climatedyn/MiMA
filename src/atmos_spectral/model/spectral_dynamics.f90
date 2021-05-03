@@ -658,6 +658,7 @@ else
   enddo
   deallocate(lmptmp,p_full,p_half,ln_p_full,ln_p_half)
 endif
+if ( allocated(rtmp) ) deallocate(rtmp)
 
 return
 end subroutine read_restart_or_do_coldstart
