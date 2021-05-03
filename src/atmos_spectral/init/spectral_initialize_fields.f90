@@ -151,16 +151,18 @@ if (choice_of_init == 3) then !initialize with prescribed input
 
    ! and lastly, let us know that it worked!
    if(mpp_pe() == mpp_root_pe()) then
-      print *, 'initial dynamical fields read in from initial_conditions.nc'
+      print *, 'initial dynamical fields read in from '//trim(initial_file)//'.nc'
    endif
 
 endif
 
 !mj random perturbation for ensembles
 if ( random_perturbation .ne. 0.0 ) then
-  allocate(rtmp(size(tg,1),size(tg,2),size(tg,3)))
-  call random_number(rtmp)
-  tg = tg + random_perturbation*rtmp
+   allocate(rtmp(size(tg,1),size(tg,2),size(tg,3)))
+   if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') 'Adding random temperature perturbation.'
+   call random_seed()
+   call random_number(rtmp)
+   tg = tg + random_perturbation*rtmp
 endif
 
 !  initial spectral fields (and spectrally-filtered) grid fields
