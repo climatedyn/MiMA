@@ -10,7 +10,7 @@ parser.add_argument('-s',dest='start_date',help="Start date. Format YYYY-MM-DD."
 parser.add_argument('-e',dest='end_date',default=None,help="End date (including). Format YYYY-MM-DD.")
 parser.add_argument('-g',dest='grid',default=['1.0','1.0'],nargs=2,help="Select grid resolution. [1.0 x 1.0].")
 parser.add_argument('--o3',dest='ozone',action='store_true',help="also download ozone data.")
-parser.add_argument('-a',dest='avg',action='store_true',help="DO NOT average over all downloaded timesteps. Passed on to convert_era5_to_input.py.")
+parser.add_argument('-a',dest='avg',action='store_true',help="Average over all downloaded timesteps. Passed on to convert_era5_to_input.py.")
 parser.add_argument('-E',dest='ensembles',default=None,help="Create multiple input files for ensemble runs. Defines number of members required. Passed on to create_ensembles.py.")
 parser.add_argument('-D',dest='download_only',action='store_true',help="Only download data, but don't do any further operations. Helpfull if node with internet access does not have enough memory.")
 parser.add_argument('-A',dest='analysis_only',action='store_true',help="Only perform analysis steps. Assumens that all data has been downloaded (for instance, with -D flag).")

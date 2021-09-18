@@ -22,7 +22,7 @@ parser.add_argument('-O',dest='o3_file',default=None,help='Name of ERA5 file con
 parser.add_argument('-o',dest='a_out',default=None,help='Name of 3D initial conditions file for MiMA.')
 parser.add_argument('--ts-out',dest='ts_out',default=None,help='Name of surface temperature input file for MiMA (optional).')
 parser.add_argument('--o3-out',dest='o3_out',default=None,help='Name of ozone input file for MiMA (optional).')
-parser.add_argument('-a',dest='average',action='store_false',help='DO NOT average over time. Averaging is recommended for initial conditions, but not for continuous forcing such as ozone or surface temperature.')
+parser.add_argument('-a',dest='average',action='store_true',help='Average over time. Averaging is recommended for initial conditions, but not for continuous forcing such as ozone or surface temperature.')
 args = parser.parse_args()
 
 
