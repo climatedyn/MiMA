@@ -765,7 +765,6 @@ gstart_indx = -1; gend_indx=-1
 ! get axis data (lat, lon, depth) and indices
    start= output_fields(outnum)%output_grid%start
    end = output_fields(outnum)%output_grid%end
-
 do i = 1,size(axes(:))
    global_axis_size = get_axis_global_length(axes(i))
    output_fields(outnum)%output_grid%subaxes(i) = -1
@@ -776,8 +775,16 @@ do i = 1,size(axes(:))
            call error_mesg ('diag_manager, get subfield size', 'wrong order of axes, X should come first',FATAL)
       allocate(global_lon(global_axis_size))
       call get_diag_axis_data(axes(i),global_lon)
-      gstart_indx(i) = get_index(start(i),global_lon)
-      gend_indx(i) = get_index(end(i),global_lon)
+      if(start(i) .le. minval(global_lon)) then
+         gstart_indx(i) = get_index(start(i),global_lon)
+      else
+         gstart_indx(i) = 1
+      endif
+      if(end(i) .ge. maxval(global_lon)) then
+         gend_indx(i) = global_axis_size
+      else
+         gend_indx(i) = get_index(end(i),global_lon)
+      endif
       allocate(subaxis_x(gstart_indx(i):gend_indx(i)))
       subaxis_x=global_lon(gstart_indx(i):gend_indx(i))
    case ('Y')
@@ -785,8 +792,16 @@ do i = 1,size(axes(:))
            call error_mesg ('diag_manager, get subfield size', 'wrong order of axes, Y should come second',FATAL)
       allocate(global_lat(global_axis_size))
       call get_diag_axis_data(axes(i),global_lat)
-      gstart_indx(i) = get_index(start(i),global_lat)
-      gend_indx(i) = get_index(end(i),global_lat)
+      if(start(i) .le. minval(global_lat)) then
+         gstart_indx(i) = 1
+      else
+         gstart_indx(i) = get_index(start(i),global_lat)
+      endif
+      if(end(i) .ge. maxval(global_lat)) then
+         gend_indx(i) = global_axis_size
+      else
+         gend_indx(i) = get_index(end(i),global_lat)
+      endif
       allocate(subaxis_y(gstart_indx(i):gend_indx(i)))
       subaxis_y=global_lat(gstart_indx(i):gend_indx(i))
    case ('Z')
@@ -811,7 +826,7 @@ do i = 1,size(axes(:))
       endif
    case default
        call error_mesg ('diag_manager, get_subfield_size', 'Wrong axis_cart', FATAL)
-   end select
+    end select
 enddo
 do i = 1,size(axes(:))
    if(gstart_indx(i)== -1 .or. gend_indx(i)== -1) &
