@@ -31,6 +31,9 @@ use         transforms_mod, only: transforms_init,         transforms_end,      
                                   vor_div_from_uv_grid,    uv_grid_from_vor_div,      &
                                   horizontal_advection,    get_grid_domain,           &
                                   get_spec_domain,         get_deg_lon, get_deg_lat
+use mpp_domains_mod,       only:  mpp_get_layout
+use spec_mpp_mod,          only:  get_grid_domain
+use spherical_fourier_mod, only:  trans_spherical_to_fourier, trans_fourier_to_spherical
 use            spec_mpp_mod,only: grid_domain, spectral_domain
 
 use     vert_advection_mod, only: vert_advection, SECOND_CENTERED, FOURTH_CENTERED, VAN_LEER_LINEAR, FINITE_VOLUME_PARABOLIC, &
@@ -96,6 +99,7 @@ real,    allocatable, dimension(:) :: pk, bk, dpk, dbk
 
 complex, allocatable, dimension(:,:,:,:)   :: vors, divs, ts ! last dimension is for time level
 complex, allocatable, dimension(:,:,:  )   :: ln_ps          ! last dimension is for time level
+complex, allocatable, dimension(:,:,:,:)   :: tf
 complex, allocatable, dimension(:,:,:,:,:) :: spec_tracers   ! 4'th dimension is for time level, last dimension is for tracer number
 
 real, allocatable, dimension(:,:,:    ) :: psg               ! last dimension is for time level
@@ -493,6 +497,7 @@ real, allocatable,dimension(:,:,:) :: lmptmp
 real, allocatable,dimension(:,:,:) :: p_half,p_full,ln_p_full,ln_p_half
 ! mj: random perturbation
 real, allocatable,dimension(:,:,:) :: rtmp
+integer :: grid_layout(2)
 ! ------
 
 file = 'INPUT/spectral_dynamics.res.nc'
@@ -549,7 +554,7 @@ if(file_exist(trim(file))) then
     !mj random perturbation for ensembles
     if ( random_perturbation .ne. 0.0 ) then
        if ( nt .eq. 1 ) then
-          if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') ' Adding random temperature perturbation.'
+          if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') ' HERE: Adiding random temperature perturbation.'
           allocate(rtmp(size(tg,1),size(tg,2),size(tg,3)))
        endif
        call RANDOM_SEED()
@@ -597,12 +602,21 @@ else
 
   !mj random perturbation for ensembles
   if ( random_perturbation .ne. 0.0 ) then
-     if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') ' Adding random temperature perturbation.'
-     allocate(rtmp(size(tg,1),size(tg,2),size(tg,3)))
-     call RANDOM_SEED()
-     call RANDOM_NUMBER(rtmp)
-     tg(:,:,:,1) = tg(:,:,:,1) + random_perturbation*rtmp
-     call trans_grid_to_spherical(tg(:,:,:,1),ts(:,:,:,1))
+     if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') ' THERE: Adding random temperature perturbation.'
+     !allocate(rtmp(size(ts,1),size(ts,2),size(ts,3)))
+     call mpp_get_layout( grid_domain, grid_layout )
+     allocate(tf(size(ts,1),size(tg,2),size(tg,3),grid_layout(2)))
+     !rtmp = 0.0
+     !call RANDOM_SEED()
+     !call RANDOM_NUMBER(rtmp(1,:,:))
+     call trans_spherical_to_fourier(ts(:,:,:,1),tf)
+     !print*,size(ts,1),size(tg,2),size(tg,3),grid_layout(2)
+     !print*,shape(tf)
+     if(mpp_pe() .eq. mpp_root_pe()) tf(2,:,:,:) = tf(2,:,:,:) + cmplx(random_perturbation,0)
+     !if(mpp_pe() .eq. mpp_root_pe()) print*,tf(:,1,1,1)
+     call trans_fourier_to_spherical(tf,ts(:,:,:,1))
+     !ts(1,:,:,1) = ts(1,:,:,1) + cmplx(random_perturbation,0)
+     call trans_spherical_to_grid(ts(:,:,:,1),tg(:,:,:,1))
   endif
      
      
