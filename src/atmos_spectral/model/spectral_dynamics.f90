@@ -551,18 +551,7 @@ if(file_exist(trim(file))) then
     call read_data(trim(file), 'ug',   ug(:,:,:,nt), grid_domain, timelevel=nt)
     call read_data(trim(file), 'vg',   vg(:,:,:,nt), grid_domain, timelevel=nt)
     call read_data(trim(file), 'tg',   tg(:,:,:,nt), grid_domain, timelevel=nt)
-    !mj random perturbation for ensembles
-    if ( random_perturbation .ne. 0.0 ) then
-       if ( nt .eq. 1 ) then
-          if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') ' HERE: Adiding random temperature perturbation.'
-          allocate(rtmp(size(tg,1),size(tg,2),size(tg,3)))
-       endif
-       call RANDOM_SEED()
-       call RANDOM_NUMBER(rtmp)
-       tg(:,:,:,nt) = tg(:,:,:,nt) + random_perturbation*rtmp
-       call trans_grid_to_spherical(tg(:,:,:,nt),ts(:,:,:,nt))
-    endif
-    !jm
+    !mj need to add vorticity perturbation here if random_perturbation > 0
     call read_data(trim(file), 'psg', psg(:,:,  nt), grid_domain, timelevel=nt)
     do ntr = 1,num_tracers
       tr_name = trim(tracer_attributes(ntr)%name)
@@ -591,7 +580,8 @@ else
           vert_coord_option, vert_difference_option, scale_heights, surf_res, p_press, p_sigma, &
           exponent, ocean_topog_smoothing, pk, bk,                                              &
           vors(:,:,:,1), divs(:,:,:,1), ts(:,:,:,1), ln_ps(:,:,1), ug(:,:,:,1), vg(:,:,:,1),    &
-          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask,specify_initial_conditions, lonb, latb, initial_file, Time, init_conds)
+          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask,specify_initial_conditions, &
+          lonb, latb, initial_file, Time, init_conds)
   else
      call spectral_init_cond(reference_sea_level_press, triang_trunc, use_virtual_temperature, topography_option,  &
           vert_coord_option, vert_difference_option, scale_heights, surf_res, p_press, p_sigma, &
@@ -601,23 +591,23 @@ else
   endif
 
   !mj random perturbation for ensembles
-  if ( random_perturbation .ne. 0.0 ) then
-     if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') ' THERE: Adding random temperature perturbation.'
-     !allocate(rtmp(size(ts,1),size(ts,2),size(ts,3)))
-     call mpp_get_layout( grid_domain, grid_layout )
-     allocate(tf(size(ts,1),size(tg,2),size(tg,3),grid_layout(2)))
-     !rtmp = 0.0
-     !call RANDOM_SEED()
-     !call RANDOM_NUMBER(rtmp(1,:,:))
-     call trans_spherical_to_fourier(ts(:,:,:,1),tf)
-     !print*,size(ts,1),size(tg,2),size(tg,3),grid_layout(2)
-     !print*,shape(tf)
-     if(mpp_pe() .eq. mpp_root_pe()) tf(2,:,:,:) = tf(2,:,:,:) + cmplx(random_perturbation,0)
-     !if(mpp_pe() .eq. mpp_root_pe()) print*,tf(:,1,1,1)
-     call trans_fourier_to_spherical(tf,ts(:,:,:,1))
-     !ts(1,:,:,1) = ts(1,:,:,1) + cmplx(random_perturbation,0)
-     call trans_spherical_to_grid(ts(:,:,:,1),tg(:,:,:,1))
-  endif
+!  if ( random_perturbation .ne. 0.0 ) then
+!     if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') ' THERE: Adding random temperature perturbation.'
+!     !allocate(rtmp(size(ts,1),size(ts,2),size(ts,3)))
+!     call mpp_get_layout( grid_domain, grid_layout )
+!     allocate(tf(size(ts,1),size(tg,2),size(tg,3),grid_layout(2)))
+!     !rtmp = 0.0
+!     !call RANDOM_SEED()
+!     !call RANDOM_NUMBER(rtmp(1,:,:))
+!     call trans_spherical_to_fourier(ts(:,:,:,1),tf)
+!     !print*,size(ts,1),size(tg,2),size(tg,3),grid_layout(2)
+!     !print*,shape(tf)
+!     if(mpp_pe() .eq. mpp_root_pe()) tf(5:8,:,25:35,:) = tf(5:8,:,25:35,:) + cmplx(random_perturbation,0)
+!     !if(mpp_pe() .eq. mpp_root_pe()) print*,tf(:,1,1,1)
+!     call trans_fourier_to_spherical(tf,ts(:,:,:,1))
+!     !ts(1,:,:,1) = ts(1,:,:,1) + cmplx(random_perturbation,0)
+!     call trans_spherical_to_grid(ts(:,:,:,1),tg(:,:,:,1))
+!  endif
      
      
 

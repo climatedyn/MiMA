@@ -38,9 +38,10 @@ character(len=128), parameter :: tagname = &
 public :: spectral_init_cond
 
 real :: initial_temperature=264.
+real :: random_perturbation=0.
 
 
-namelist / spectral_init_cond_nml / initial_temperature
+namelist / spectral_init_cond_nml / initial_temperature, random_perturbation
 
 Contains
 
@@ -98,10 +99,11 @@ call press_and_geopot_init(pk, bk, use_virtual_temperature, vert_difference_opti
 
 if (choice_of_init .eq. 3) then
    call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
-        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, lonb, latb, initial_file, Time, init_conds)
+        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, random_perturbation, &
+        lonb, latb, initial_file, Time, init_conds)
 else
    call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
-        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg)
+        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, random_perturbation)
 endif
 
 

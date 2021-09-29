@@ -32,14 +32,14 @@ contains
 
 !-------------------------------------------------------------------------------------------------
 subroutine spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
-                        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, lonb, latb, initial_file, Time, init_conds)
+                        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, random_perturbation, lonb, latb, initial_file, Time, init_conds)
   !mj use interpolator for initial conditions
   use interpolator_mod, only: interpolate_type,interpolator_init,CONSTANT,interpolator
   use press_and_geopot_mod,only: pressure_variables
 real,    intent(in) :: reference_sea_level_press
 logical, intent(in) :: triang_trunc
 integer, intent(in) :: choice_of_init
-real,    intent(in) :: initial_temperature
+real,    intent(in) :: initial_temperature, random_perturbation
 
 real,    intent(in),  dimension(:,:    ) :: surf_geopotential
 complex, intent(out), dimension(:,:    ) :: ln_ps
@@ -65,6 +65,9 @@ integer :: ms, me, ns, ne, is, ie, js, je, num_levels
 real, allocatable,dimension(:,:,:) :: lmptmp
 real, allocatable,dimension(:,:,:) :: p_half,ln_p_half,p_full,ln_p_full
 ! --------
+! mj: add random perturbation for ensembles
+real,allocatable,dimension(:,:,:) :: ug_i,vg_i
+real :: randn
 
 if(.not.entry_to_logfile_done) then
   call write_version_number(version, tagname)
@@ -100,26 +103,29 @@ if(choice_of_init == 1) then  ! perturb temperature field
   endif
 endif
 
-if(choice_of_init == 2) then   ! initial vorticity perturbation used in benchmark code
+if(choice_of_init == 2 .or. random_perturbation .gt. 0.0 ) then   ! initial vorticity perturbation used in benchmark code
+   call RANDOM_SEED()
+   call RANDOM_NUMBER(randn)
+   random_perturbation = randn*random_perturbation
   if(ms <= 1 .and. me >= 1 .and. ns <= 3 .and. ne >= 3) then
-    vors(2-ms,4-ns,num_levels  ) = initial_perturbation
-    vors(2-ms,4-ns,num_levels-1) = initial_perturbation
-    vors(2-ms,4-ns,num_levels-2) = initial_perturbation
+    vors(2-ms,4-ns,num_levels  ) = initial_perturbation + random_perturbation 
+    vors(2-ms,4-ns,num_levels-1) = initial_perturbation + random_perturbation 
+    vors(2-ms,4-ns,num_levels-2) = initial_perturbation + random_perturbation 
   endif
   if(ms <= 5 .and. me >= 5 .and. ns <= 3 .and. ne >= 3) then
-    vors(6-ms,4-ns,num_levels  ) = initial_perturbation
-    vors(6-ms,4-ns,num_levels-1) = initial_perturbation
-    vors(6-ms,4-ns,num_levels-2) = initial_perturbation
+    vors(6-ms,4-ns,num_levels  ) = initial_perturbation + random_perturbation 
+    vors(6-ms,4-ns,num_levels-1) = initial_perturbation + random_perturbation 
+    vors(6-ms,4-ns,num_levels-2) = initial_perturbation + random_perturbation 
   endif
   if(ms <= 1 .and. me >= 1 .and. ns <= 2 .and. ne >= 2) then
-    vors(2-ms,3-ns,num_levels  ) = initial_perturbation
-    vors(2-ms,3-ns,num_levels-1) = initial_perturbation
-    vors(2-ms,3-ns,num_levels-2) = initial_perturbation
+    vors(2-ms,3-ns,num_levels  ) = initial_perturbation + random_perturbation 
+    vors(2-ms,3-ns,num_levels-1) = initial_perturbation + random_perturbation 
+    vors(2-ms,3-ns,num_levels-2) = initial_perturbation + random_perturbation 
   endif
   if(ms <= 5 .and. me >= 5 .and. ns <= 2 .and. ne >= 2) then
-    vors(6-ms,3-ns,num_levels  ) = initial_perturbation
-    vors(6-ms,3-ns,num_levels-1) = initial_perturbation
-    vors(6-ms,3-ns,num_levels-2) = initial_perturbation
+    vors(6-ms,3-ns,num_levels  ) = initial_perturbation + random_perturbation 
+    vors(6-ms,3-ns,num_levels-1) = initial_perturbation + random_perturbation 
+    vors(6-ms,3-ns,num_levels-2) = initial_perturbation + random_perturbation 
   endif
   call uv_grid_from_vor_div(vors, divs, ug, vg)
 endif
@@ -141,8 +147,16 @@ if (choice_of_init == 3) then !initialize with prescribed input
    ! forget about all other pressure variables which we don't need
    deallocate(ln_p_half,p_full,ln_p_full)
    ! interpolate onto full 3D field
-   call interpolator(init_conds, Time, p_half, ug, 'ucomp', is, js)
-   call interpolator(init_conds, Time, p_half, vg, 'vcomp', is, js)
+   if ( random_perturbation .gt. 0.0 ) then
+      allocate(ug_i(size(tg,1),size(tg,2),size(tg,3)),vg_i(size(tg,1),size(tg,2),size(tg,3)))
+      call interpolator(init_conds, Time, p_half, ug_i, 'ucomp', is, js)
+      call interpolator(init_conds, Time, p_half, vg_i, 'vcomp', is, js)
+      ug = ug + ug_i
+      vg = vg + vg_i
+   else:
+      call interpolator(init_conds, Time, p_half, ug, 'ucomp', is, js)
+      call interpolator(init_conds, Time, p_half, vg, 'vcomp', is, js)
+   endif
    call interpolator(init_conds, Time, p_half, tg, 'temp', is, js)
 
    ! and lastly, let us know that it worked!
