@@ -38,10 +38,9 @@ character(len=128), parameter :: tagname = &
 public :: spectral_init_cond
 
 real :: initial_temperature=264.
-real :: random_perturbation=0.
 
 
-namelist / spectral_init_cond_nml / initial_temperature, random_perturbation
+namelist / spectral_init_cond_nml / initial_temperature
 
 Contains
 
@@ -50,7 +49,7 @@ Contains
 subroutine spectral_init_cond(reference_sea_level_press, triang_trunc, use_virtual_temperature, topography_option, &
                               vert_coord_option, vert_difference_option, scale_heights, surf_res,    &
                               p_press, p_sigma, exponent, ocean_topog_smoothing, pk, bk, vors, divs, &
-                              ts, ln_ps, ug, vg, tg, psg, vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions, &
+                              ts, ln_ps, ug, vg, tg, psg, vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions, random_perturbation, &
                               lonb, latb, initial_file, Time, init_conds) !mj initial conditions
 
 real,    intent(in) :: reference_sea_level_press
@@ -66,6 +65,7 @@ real,    intent(out), dimension(:,:,:) :: vorg, divg
 real,    intent(out), dimension(:,:  ) :: surf_geopotential
 logical, optional, intent(in), dimension(:,:) :: ocean_mask
 logical, intent(in) :: specify_initial_conditions   !epg+ray
+real,    intent(in) :: random_perturbation                ! mj initial conditions
 real,    intent(in), dimension(:), optional :: lonb, latb ! mj initial conditions
 character(len=*), intent(in), optional      :: initial_file ! mj initial conditions
 type(time_type), intent(in), optional       :: Time

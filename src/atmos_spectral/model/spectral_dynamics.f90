@@ -31,9 +31,6 @@ use         transforms_mod, only: transforms_init,         transforms_end,      
                                   vor_div_from_uv_grid,    uv_grid_from_vor_div,      &
                                   horizontal_advection,    get_grid_domain,           &
                                   get_spec_domain,         get_deg_lon, get_deg_lat
-use mpp_domains_mod,       only:  mpp_get_layout
-use spec_mpp_mod,          only:  get_grid_domain
-use spherical_fourier_mod, only:  trans_spherical_to_fourier, trans_fourier_to_spherical
 use            spec_mpp_mod,only: grid_domain, spectral_domain
 
 use     vert_advection_mod, only: vert_advection, SECOND_CENTERED, FOURTH_CENTERED, VAN_LEER_LINEAR, FINITE_VOLUME_PARABOLIC, &
@@ -496,8 +493,7 @@ type(interpolate_type) :: init_conds
 real, allocatable,dimension(:,:,:) :: lmptmp
 real, allocatable,dimension(:,:,:) :: p_half,p_full,ln_p_full,ln_p_half
 ! mj: random perturbation
-real, allocatable,dimension(:,:,:) :: rtmp
-integer :: grid_layout(2)
+real :: randn
 ! ------
 
 file = 'INPUT/spectral_dynamics.res.nc'
@@ -528,7 +524,32 @@ if(file_exist(trim(file))) then
   call read_data(trim(file), 'pk', pk, no_domain=.true.)
   call read_data(trim(file), 'bk', bk, no_domain=.true.)
   do nt=1,num_time_levels
-    call read_data(trim(file), 'vors_real',  real_part, spectral_domain, timelevel=nt)
+     call read_data(trim(file), 'vors_real',  real_part, spectral_domain, timelevel=nt)
+     if ( random_perturbation .gt. 0. ) then
+        call RANDOM_SEED()
+        call RANDOM_NUMBER(randn)
+        random_perturbation = randn*random_perturbation*1.e-6
+        if(ms <= 1 .and. me >= 1 .and. ns <= 3 .and. ne >= 3) then
+           real_part(2-ms,4-ns,num_levels  ) = real_part(2-ms,4-ns,num_levels  ) + random_perturbation 
+           real_part(2-ms,4-ns,num_levels-1) = real_part(2-ms,4-ns,num_levels-1) + random_perturbation 
+           real_part(2-ms,4-ns,num_levels-2) = real_part(2-ms,4-ns,num_levels-2) + random_perturbation 
+        endif
+        if(ms <= 5 .and. me >= 5 .and. ns <= 3 .and. ne >= 3) then
+           real_part(6-ms,4-ns,num_levels  ) = real_part(6-ms,4-ns,num_levels  ) + random_perturbation 
+           real_part(6-ms,4-ns,num_levels-1) = real_part(6-ms,4-ns,num_levels-1) + random_perturbation 
+           real_part(6-ms,4-ns,num_levels-2) = real_part(6-ms,4-ns,num_levels-2) + random_perturbation 
+        endif
+        if(ms <= 1 .and. me >= 1 .and. ns <= 2 .and. ne >= 2) then
+           real_part(2-ms,3-ns,num_levels  ) = real_part(2-ms,3-ns,num_levels  ) + random_perturbation 
+           real_part(2-ms,3-ns,num_levels-1) = real_part(2-ms,3-ns,num_levels-1) + random_perturbation 
+           real_part(2-ms,3-ns,num_levels-2) = real_part(2-ms,3-ns,num_levels-2) + random_perturbation 
+        endif
+        if(ms <= 5 .and. me >= 5 .and. ns <= 2 .and. ne >= 2) then
+           real_part(6-ms,3-ns,num_levels  ) = real_part(6-ms,3-ns,num_levels  ) + random_perturbation 
+           real_part(6-ms,3-ns,num_levels-1) = real_part(6-ms,3-ns,num_levels-1) + random_perturbation 
+           real_part(6-ms,3-ns,num_levels-2) = real_part(6-ms,3-ns,num_levels-2) + random_perturbation 
+        endif
+     endif
     call read_data(trim(file), 'vors_imag',  imag_part, spectral_domain, timelevel=nt)
     do k=1,num_levels; do n=ns,ne; do m=ms,me
       vors(m,n,k,nt) = cmplx(real_part(m,n,k),imag_part(m,n,k))
@@ -580,14 +601,14 @@ else
           vert_coord_option, vert_difference_option, scale_heights, surf_res, p_press, p_sigma, &
           exponent, ocean_topog_smoothing, pk, bk,                                              &
           vors(:,:,:,1), divs(:,:,:,1), ts(:,:,:,1), ln_ps(:,:,1), ug(:,:,:,1), vg(:,:,:,1),    &
-          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask,specify_initial_conditions, &
+          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask,specify_initial_conditions, random_perturbation, &
           lonb, latb, initial_file, Time, init_conds)
   else
      call spectral_init_cond(reference_sea_level_press, triang_trunc, use_virtual_temperature, topography_option,  &
           vert_coord_option, vert_difference_option, scale_heights, surf_res, p_press, p_sigma, &
           exponent, ocean_topog_smoothing, pk, bk,                                              &
           vors(:,:,:,1), divs(:,:,:,1), ts(:,:,:,1), ln_ps(:,:,1), ug(:,:,:,1), vg(:,:,:,1),    &
-          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions)
+          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions, random_perturbation)
   endif
 
   !mj random perturbation for ensembles
@@ -662,7 +683,7 @@ else
   enddo
   deallocate(lmptmp,p_full,p_half,ln_p_full,ln_p_half)
 endif
-if ( allocated(rtmp) ) deallocate(rtmp)
+!if ( allocated(rtmp) ) deallocate(rtmp)
 
 return
 end subroutine read_restart_or_do_coldstart

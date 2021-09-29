@@ -106,26 +106,26 @@ endif
 if(choice_of_init == 2 .or. random_perturbation .gt. 0.0 ) then   ! initial vorticity perturbation used in benchmark code
    call RANDOM_SEED()
    call RANDOM_NUMBER(randn)
-   random_perturbation = randn*random_perturbation
+   randn = randn*random_perturbation*1.e-6
   if(ms <= 1 .and. me >= 1 .and. ns <= 3 .and. ne >= 3) then
-    vors(2-ms,4-ns,num_levels  ) = initial_perturbation + random_perturbation 
-    vors(2-ms,4-ns,num_levels-1) = initial_perturbation + random_perturbation 
-    vors(2-ms,4-ns,num_levels-2) = initial_perturbation + random_perturbation 
+    vors(2-ms,4-ns,num_levels  ) = initial_perturbation + randn
+    vors(2-ms,4-ns,num_levels-1) = initial_perturbation + randn
+    vors(2-ms,4-ns,num_levels-2) = initial_perturbation + randn
   endif
   if(ms <= 5 .and. me >= 5 .and. ns <= 3 .and. ne >= 3) then
-    vors(6-ms,4-ns,num_levels  ) = initial_perturbation + random_perturbation 
-    vors(6-ms,4-ns,num_levels-1) = initial_perturbation + random_perturbation 
-    vors(6-ms,4-ns,num_levels-2) = initial_perturbation + random_perturbation 
+    vors(6-ms,4-ns,num_levels  ) = initial_perturbation + randn
+    vors(6-ms,4-ns,num_levels-1) = initial_perturbation + randn
+    vors(6-ms,4-ns,num_levels-2) = initial_perturbation + randn
   endif
   if(ms <= 1 .and. me >= 1 .and. ns <= 2 .and. ne >= 2) then
-    vors(2-ms,3-ns,num_levels  ) = initial_perturbation + random_perturbation 
-    vors(2-ms,3-ns,num_levels-1) = initial_perturbation + random_perturbation 
-    vors(2-ms,3-ns,num_levels-2) = initial_perturbation + random_perturbation 
+    vors(2-ms,3-ns,num_levels  ) = initial_perturbation + randn
+    vors(2-ms,3-ns,num_levels-1) = initial_perturbation + randn
+    vors(2-ms,3-ns,num_levels-2) = initial_perturbation + randn
   endif
   if(ms <= 5 .and. me >= 5 .and. ns <= 2 .and. ne >= 2) then
-    vors(6-ms,3-ns,num_levels  ) = initial_perturbation + random_perturbation 
-    vors(6-ms,3-ns,num_levels-1) = initial_perturbation + random_perturbation 
-    vors(6-ms,3-ns,num_levels-2) = initial_perturbation + random_perturbation 
+    vors(6-ms,3-ns,num_levels  ) = initial_perturbation + randn
+    vors(6-ms,3-ns,num_levels-1) = initial_perturbation + randn
+    vors(6-ms,3-ns,num_levels-2) = initial_perturbation + randn
   endif
   call uv_grid_from_vor_div(vors, divs, ug, vg)
 endif
@@ -153,7 +153,7 @@ if (choice_of_init == 3) then !initialize with prescribed input
       call interpolator(init_conds, Time, p_half, vg_i, 'vcomp', is, js)
       ug = ug + ug_i
       vg = vg + vg_i
-   else:
+   else
       call interpolator(init_conds, Time, p_half, ug, 'ucomp', is, js)
       call interpolator(init_conds, Time, p_half, vg, 'vcomp', is, js)
    endif
