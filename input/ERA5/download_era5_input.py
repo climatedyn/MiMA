@@ -9,6 +9,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-s',dest='start_date',help="Start date. Format YYYY-MM-DD.")
 parser.add_argument('-e',dest='end_date',default=None,help="End date (including). Format YYYY-MM-DD.")
 parser.add_argument('-g',dest='grid',default=['1.0','1.0'],nargs=2,help="Select grid resolution. [1.0 x 1.0].")
+parser.add_argument('-H',dest='hourly',action='store_true',help="Download hourly data. Applies to 2D data only. [False]")
 parser.add_argument('--o3',dest='ozone',action='store_true',help="also download ozone data.")
 parser.add_argument('-a',dest='avg',action='store_true',help="Average over all downloaded timesteps. Passed on to convert_era5_to_input.py.")
 parser.add_argument('-E',dest='ensembles',default=None,help="Create multiple input files for ensemble runs. Defines number of members required. Passed on to create_ensembles.py.")
@@ -73,16 +74,19 @@ if not args.analysis_only:
         print('DOWNLOADING 2D DATA FOR DATE {0}.'.format(args.start_date))
     else:
         print('DOWNLOADING 2D DATA BETWEEN {0} AND {1}.'.format(args.start_date,args.end_date))
-    c.retrieve(
-        'reanalysis-era5-single-levels',
-        {
+    dict_2d = {
             'product_type'  : 'reanalysis',
             'variable'      : vars2d,
             'date'          : date_str_pl,
             'time'          : '00',
             'format'        : 'netcdf',
             'grid'          : args.grid,
-        },
+    }
+    if args.hourly:
+        dict_2d['time'] : ','.join(['{0:02d}'.format(h) for h in np.arange(24)])
+    c.retrieve(
+        'reanalysis-era5-single-levels',
+        dict_2d,
         file2d)
 
     if args.end_date is None:
