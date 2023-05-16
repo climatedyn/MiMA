@@ -302,7 +302,8 @@ do i = 1, ndim
   !mj if we want to use a previous output file as an input file
   ! (eg to force the model), the calendar might be "360", which
   ! is another way of saying "thirty_day_months"
-  if ( trim(file_calendar) .eq. '360' ) file_calendar = 'thirty_day_months'
+  ! similarly, python-cftime uses "360_day"
+  if ( trim(file_calendar) .eq. '360' .or. trim(file_calendar) .eq. '360_day' ) file_calendar = 'thirty_day_months'
   select case(name)
     case('lat','latitude')
       nlat=len
