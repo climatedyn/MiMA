@@ -86,6 +86,12 @@
         real(kind=rb),allocatable,dimension(:,:,:) :: tdt_sw_rad,tdt_lw_rad ! SW, LW radiation heating rates,
                                                                             ! diagnostics only [K/s]
                                                                             ! dimension (lon x lat x pfull)
+        real(kind=rb),allocatable,dimension(:,:,:) :: dflux_sw_rad,dflux_lw_rad ! SW, LW downward fluxes,
+                                                                            ! diagnostics only [W/m2]
+                                                                            ! dimension (lon x lat x pfull)
+        real(kind=rb),allocatable,dimension(:,:,:) :: uflux_sw_rad,uflux_lw_rad ! SW, LW upward fluxes,
+                                                                            ! diagnostics only [W/m2]
+                                                                            ! dimension (lon x lat x pfull)
         real(kind=rb),allocatable,dimension(:,:,:) :: t_half                ! temperature at half levels [K]
                                                                             ! dimension (lon x lat x phalf)
         real(kind=rb),allocatable,dimension(:,:)   :: rrtm_precip           ! total time of precipitation
@@ -185,7 +191,7 @@
 !
 !-------------------- diagnostics fields -------------------------------
 
-        integer :: id_tdt_rad,id_tdt_sw,id_tdt_lw,id_coszen,id_flux_sw,id_flux_lw,id_albedo,id_ozone,id_thalf
+        integer :: id_tdt_rad,id_tdt_sw,id_tdt_lw,id_dflux_sw,id_dflux_lw,id_uflux_sw,id_uflux_lw,id_coszen,id_flux_sw,id_flux_lw,id_albedo,id_ozone,id_thalf
         integer :: id_olr,id_isr
         character(len=14), parameter :: mod_name = 'rrtm_radiation'
         real :: missing_value = -999.
@@ -275,6 +281,22 @@
                register_diag_field ( mod_name, 'tdt_lw', axes(1:3), Time, &
                  'Temperature tendency due to LW radiation', &
                  'K/s', missing_value=missing_value               )
+          id_dflux_sw= &
+               register_diag_field ( mod_name, 'dflux_sw', axes(1:3), Time, &
+                 'SW downward flux', &
+                 'W/m2', missing_value=missing_value               )
+          id_dflux_lw= &
+               register_diag_field ( mod_name, 'dflux_lw', axes(1:3), Time, &
+                 'LW downward flux', &
+                 'W/m2', missing_value=missing_value               )
+          id_uflux_sw= &
+               register_diag_field ( mod_name, 'uflux_sw', axes(1:3), Time, &
+                 'SW upward flux', &
+                 'W/m2', missing_value=missing_value               )
+          id_uflux_lw= &
+               register_diag_field ( mod_name, 'uflux_lw', axes(1:3), Time, &
+                 'LW upward flux', &
+                 'W/m2', missing_value=missing_value               )
           id_coszen  = &
                register_diag_field ( mod_name, 'coszen', axes(1:2), Time, &
                  'cosine of zenith angle', &
@@ -418,6 +440,10 @@
                allocate(tdt_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
           if(id_tdt_sw .gt. 0) allocate(tdt_sw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
           if(id_tdt_lw .gt. 0) allocate(tdt_lw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
+          if(id_dflux_sw .gt. 0) allocate(dflux_sw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
+          if(id_dflux_lw .gt. 0) allocate(dflux_lw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
+          if(id_uflux_sw .gt. 0) allocate(uflux_sw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
+          if(id_uflux_lw .gt. 0) allocate(uflux_lw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
           if(id_isr .gt. 0) allocate(isr(size(lonb,1)-1,size(latb,1)-1))
           if(id_olr .gt. 0) allocate(olr(size(lonb,1)-1,size(latb,1)-1))
 
@@ -533,9 +559,10 @@
           real(kind=rb),dimension(ncols_rrt,nlay_rrt) :: pfull,tfull&
                , hr,hrc, swhr, swhrc
           real(kind=rb),dimension(size(tdt,1),size(tdt,2),size(tdt,3)) :: tdt_rrtm
+          real(kind=rb),dimension(size(tdt,1),size(tdt,2),size(tdt,3)) :: dflux_sw_rrtm,dflux_lw_rrtm,uflux_sw_rrtm,uflux_lw_rrtm
           real(kind=rb),dimension(ncols_rrt,nlay_rrt+1) :: uflx, dflx, uflxc, dflxc&
                ,swuflx, swdflx, swuflxc, swdflxc
-          real(kind=rb),dimension(size(q,1)/lonstep,size(q,2),size(q,3)  ) :: swijk,lwijk
+          real(kind=rb),dimension(size(q,1)/lonstep,size(q,2),size(q,3)  ) :: swijk,lwijk,swdflxijk,swuflxijk,lwdflxijk,lwuflxijk
           real(kind=rb),dimension(size(q,1)/lonstep,size(q,2)) :: swflxijk,lwflxijk,olrijk,isrijk
           real(kind=rb),dimension(ncols_rrt,nlay_rrt+1):: phalf,thalf
           real(kind=rb),dimension(ncols_rrt)   :: tsrf,cosz_rr,albedo_rr
@@ -559,6 +586,10 @@
           else
              if(store_intermediate_rad)then
                 tdt_rrtm = tdt_rad
+                !dflux_sw_rrtm = dflux_sw_rad
+                !dflux_lw_rrtm = dflux_lw_rad
+                !uflux_sw_rrtm = uflux_sw_rad
+                !uflux_lw_rrtm = uflux_lw_rad
                 flux_sw = sw_flux
                 flux_lw = lw_flux
              else
@@ -606,6 +637,10 @@
              !endif
              tdt = tdt + tdt_rrtm
              tdt_rad = tdt_rrtm
+             !dflux_sw_rad = dflux_sw_rrtm
+             !dflux_lw_rad = dflux_lw_rrtm
+             !uflux_sw_rad = uflux_sw_rrtm
+             !uflux_lw_rad = uflux_lw_rrtm
              sw_flux = flux_sw
              lw_flux = flux_lw
              call write_diag_rrtm(Time_loc,is,js)
@@ -741,6 +776,9 @@
           endif
 
           swijk   = reshape(swhr(:,sk:1:-1),(/ si/lonstep,sj,sk /))*daypersec
+          ! interpolate phalf fluxes onto pfull
+          swdflxijk   = reshape(0.5*(swdflx(:,sk+1:2:-1)+swdflx(:,sk:1:-1)),(/ si/lonstep,sj,sk /))
+          swuflxijk   = reshape(0.5*(swuflx(:,sk+1:2:-1)+swuflx(:,sk:1:-1)),(/ si/lonstep,sj,sk /))
           isrijk  = reshape(swdflx(:,sk+1)-swuflx(:,sk+1),(/ si/lonstep,sj /))
 
           hr = 0.
@@ -776,9 +814,12 @@
                   uflx      , dflx    , hr      , uflxc, dflxc  , hrc)
           endif
 
-          lwijk   = reshape(hr(:,sk:1:-1),(/ si/lonstep,sj,sk /))*daypersec
+          lwijk       = reshape(hr(:,sk:1:-1),(/ si/lonstep,sj,sk /))*daypersec
+          ! interpolate phalf fluxes onto pfull
+          lwdflxijk   = reshape(0.5*(dflx(:,sk+1:2:-1)+dflx(:,sk:1:-1)),(/ si/lonstep,sj,sk /))
+          lwuflxijk   = reshape(0.5*(uflx(:,sk+1:2:-1)+uflx(:,sk:1:-1)),(/ si/lonstep,sj,sk /))
           ! dflx at TOA is zero, but it doesn't hurt to include it to compute OLR
-          olrijk  = reshape(uflx(:,sk+1) - dflx(:,sk+1),(/ si/lonstep,sj /))
+          olrijk      = reshape(uflx(:,sk+1) - dflx(:,sk+1),(/ si/lonstep,sj /))
 
 !---------------------------------------------------------------------------------------------------------------
           ! get radiation
@@ -803,6 +844,10 @@
                    endif
                    if(id_tdt_sw .gt. 0)tdt_sw_rad(ij1,:,:)=di*swijk(i1,:,:)+(1.-di)*swijk(i,:,:)
                    if(id_tdt_lw .gt. 0)tdt_lw_rad(ij1,:,:)=di*lwijk(i1,:,:)+(1.-di)*lwijk(i,:,:)
+                   if(id_dflux_sw .gt. 0)dflux_sw_rad(ij1,:,:)=di*swdflxijk(i1,:,:)+(1.-di)*swdflxijk(i,:,:)
+                   if(id_dflux_lw .gt. 0)dflux_lw_rad(ij1,:,:)=di*lwdflxijk(i1,:,:)+(1.-di)*lwdflxijk(i,:,:)
+                   if(id_uflux_sw .gt. 0)uflux_sw_rad(ij1,:,:)=di*swuflxijk(i1,:,:)+(1.-di)*swuflxijk(i,:,:)
+                   if(id_uflux_lw .gt. 0)uflux_lw_rad(ij1,:,:)=di*lwuflxijk(i1,:,:)+(1.-di)*lwuflxijk(i,:,:)
                    if(id_olr    .gt. 0)olr(ij1,:)         =di*olrijk(i1,:) +(1.-di)*olrijk(i,:)
                    if(id_isr    .gt. 0)isr(ij1,:)         =di*isrijk(i1,:) +(1.-di)*isrijk(i,:)
                 enddo
@@ -811,6 +856,10 @@
           tdt = tdt + tdt_rrtm
           ! store radiation between radiation time steps
           if(store_intermediate_rad .or. id_tdt_rad > 0) tdt_rad = tdt_rrtm
+          !if(store_intermediate_rad .or. id_dflux_sw > 0) dflux_sw_rad = dflux_sw_rrtm
+          !if(store_intermediate_rad .or. id_dflux_lw > 0) dflux_lw_rad = dflux_lw_rrtm
+          !if(store_intermediate_rad .or. id_uflux_sw > 0) uflux_sw_rad = uflux_sw_rrtm
+          !if(store_intermediate_rad .or. id_uflux_lw > 0) uflux_lw_rad = uflux_lw_rrtm
 
 
           ! get the surface fluxes
@@ -870,7 +919,8 @@
 !
 ! Modules
           use rrtm_vars,only:         sw_flux,lw_flux,zencos,tdt_rad,tdt_sw_rad,tdt_lw_rad,&
-                                      &olr,isr,&
+                                      &olr,isr,dflux_sw_rad,dflux_lw_rad,uflux_sw_rad,uflux_lw_rad,&
+                                      &id_dflux_sw,id_dflux_lw,id_uflux_sw,id_uflux_lw,&
                                       &id_tdt_rad,id_tdt_sw,id_tdt_lw,id_coszen,&
                                       &id_flux_sw,id_flux_lw,id_albedo,id_ozone,&
                                       &id_thalf,id_isr,id_olr
@@ -896,6 +946,22 @@
 !------- temperature tendency due to LW radiation ---------
           if ( id_tdt_lw > 0 ) then
              used = send_data ( id_tdt_lw, tdt_lw_rad, Time, is, js, 1 )
+          endif
+!------- downward SW flux                         ---------
+          if ( id_dflux_sw > 0 ) then
+             used = send_data ( id_dflux_sw, dflux_sw_rad, Time, is, js, 1 )
+          endif
+!------- downward LW flux                         ---------
+          if ( id_dflux_lw > 0 ) then
+             used = send_data ( id_dflux_lw, dflux_lw_rad, Time, is, js, 1 )
+          endif
+!------- upward SW flux                           ---------
+          if ( id_uflux_sw > 0 ) then
+             used = send_data ( id_uflux_sw, uflux_sw_rad, Time, is, js, 1 )
+          endif
+!------- upward LW flux                           ---------
+          if ( id_uflux_lw > 0 ) then
+             used = send_data ( id_uflux_lw, uflux_lw_rad, Time, is, js, 1 )
           endif
 !------- cosine of zenith angle                ------------
           if ( id_coszen > 0 ) then
