@@ -99,7 +99,7 @@ real ::   z_ref_heat      = 2.,       &
 	  deltaT           = 40.,     &
           qflux_amp        = 30.,     & !mj
           qflux_width      = 16.        !mj
-!cig
+!cig 
 real ::   mom_roughness_land  = 1., &
 	  q_roughness_land  = 1.       
 
@@ -152,8 +152,10 @@ namelist /simple_surface_nml/ z_ref_heat, z_ref_mom,             &
 ! mj know about topography
   real, allocatable, dimension(:,:) :: zsurf,land_sea_heat_capacity
 !mj read sst and land sea mask from input file
-  real, allocatable, dimension(:,:) :: land_sea_mask
-  logical,allocatable,dimension(:,:):: lmask_navy
+!mj  has to be real, with 1.0 = ocean, 0.0 = land
+!mj  but can also use navy_pcwater of course 
+  real,allocatable,dimension(:,:):: land_sea_mask_r
+  logical,allocatable,dimension(:,:):: land_sea_mask,flux_q_mask
   type(interpolate_type),save :: sst_interp, lmask_interp
 
 
@@ -183,10 +185,10 @@ real, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
        q_star, q_surf, cd_q, cd_t, cd_m, wind, dtaudu_atm
 
 logical, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
-       mask, glacier, seawater
+       mask, glacier, seawater, avail
 
 logical :: used
- logical :: ocean_mask_worked
+logical :: ocean_mask_worked
 
 integer :: j, i
 real :: lat, pi, lon
@@ -224,7 +226,19 @@ pi = 4.0*atan(1.)
    water      = 1.0
    max_water  = 1.0
 
-   mask    = .true.
+   !mj flux_q_mask is used to scale flux_q (evaporation) over land
+   !mj mask is used in surface_flux to distinguish between land and sea - only if land model is used!
+   !mj  so for MiMA, we want everything to be treated as ocean here.
+   !mj seawater is used in surface_flux to account for salinity in saturation pressure
+   !mj  this probably doesn't make sense for MiMA as roughness is an ad-hoc number anayway
+   !mj avail can be used to set all surface fluxes to zero (where(.not. avail))
+   !mj glacier is currently not used
+   flux_q_mask = .false.
+   if ( allocated(land_sea_mask) ) then
+      where(.not. land_sea_mask) flux_q_mask = .true.
+   endif
+   avail = .true.
+   mask = .true.
    glacier = .false.
    seawater= .false.
 
@@ -241,20 +255,20 @@ pi = 4.0*atan(1.)
      rough_heat  = const_roughness
      rough_moist = const_roughness
        
-     if(trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then 	
-         where ( .NOT. lmask_navy  ) rough_mom   = const_roughness * mom_roughness_land
-	 where ( .NOT. lmask_navy  ) rough_moist   = const_roughness * q_roughness_land	 
+     if( allocated(land_sea_mask) )then 
+         where ( .NOT. land_sea_mask  ) rough_mom   = const_roughness * mom_roughness_land
+	 where ( .NOT. land_sea_mask  ) rough_moist   = const_roughness * q_roughness_land	 
      endif
   elseif(roughness_choice == 4) then   !cig: set higher roughness values over land as compared to ocean, and more evaporation over tropics and midlatitudes as compared to subtropics
      rough_mom   = const_roughness
      rough_heat  = const_roughness
      rough_moist = const_roughness
-     if(trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then
-         where ( .NOT. lmask_navy  ) rough_mom   = const_roughness * mom_roughness_land
+     if( allocated(land_sea_mask) )then
+         where ( .NOT. land_sea_mask  ) rough_mom   = const_roughness * mom_roughness_land
 	    
 	  do j = 1, size(Atm%t_bot,2)
       		 lat = 0.5*(Atm%lat_bnd(j+1) + Atm%lat_bnd(j))*180./pi		 
-		  where ( .NOT. lmask_navy(:,j) )   rough_moist(:,j)=const_roughness * q_roughness_land + &
+		  where ( .NOT. land_sea_mask(:,j) )   rough_moist(:,j)=const_roughness * q_roughness_land + &
 			      &	 + (1.e-7)* exp(-abs(lat-0.)**3./(2*15.)) &
 			      &	 + (1.e-25)*exp(-abs(lat-45.)**3./(2*30.)) &
 			      &	 + (1.e-25)*exp(-abs(lat+45.)**3./(2*30.)) 
@@ -324,7 +338,6 @@ pi = 4.0*atan(1.)
         albedo(:,j) = const_albedo + &	
 	     (higher_albedo-const_albedo)*0.5*(1+tanh((lat-albedo_cntrNH)/albedo_wdth)) + &
 	     (higher_albedo-const_albedo)*0.5*(1-tanh((lat+albedo_cntrSH)/albedo_wdth))
-
      enddo
 !mj add symmetric higher albedo - sin2 increase from equator to pole
    elseif(albedo_choice .eq. 6) then
@@ -390,9 +403,10 @@ endif
                       drdt_surf, dhdt_atm, dedq_atm,                     &
                       dtaudu_atm,                                        & ! Required argument, intent(out), but not needed by this model.
                       dtaudv_atm, dt,                                    & ! Required argument, intent(in). Looks like it should be .false. everywhere.
-                      .not.mask,                                         &
+                      .not.mask,                                         & ! .true. for land - 
                       seawater,                                          & ! Required argument, intent(in). Looks like fudgefactor for salt water. Use .false.
-                      mask )                                               ! Required argument, intent(in). Looks like it should be .true. everywhere.
+                      avail,                                             & ! Required argument, intent(in). Looks like it should be .true. everywhere.
+                      flux_q_mask )                                        !mj scale flux_q over land
 
 ! intent(out):: flux_t, flux_q, flux_lw, flux_u, flux_v, cd_m, cd_t, cd_q, wind, u_star, b_star, q_star,
 ! intent(out):: dhdt_surf, dedt_surf, dedq_surf, drdt_surf, dhdt_atm, dedq_atm, dtaudu_atm, dtaudv_atm
@@ -500,7 +514,6 @@ real, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
 ! mj end
 
          dt_t_surf = flux/(1.0 -deriv)
-         
       endif
 
    elseif(surface_choice == 2) then
@@ -546,6 +559,7 @@ real, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
    if ( id_q_flux > 0 ) used = send_data ( id_q_flux, flux_q, Time )
    if ( id_o_flux > 0 ) used = send_data ( id_o_flux, flux_o, Time )
    if ( id_heat   > 0 ) used = send_data ( id_heat,land_sea_heat_capacity,Time )
+   if ( id_tdt_horiz>0) used = send_data ( id_tdt_horiz,horiz_heat,Time )
    if ( id_entrop_evap > 0 ) then
       entrop_evap = flux_q/sst
       used = send_data ( id_entrop_evap, entrop_evap, Time)
@@ -634,19 +648,32 @@ if( do_read_init_sst ) then
    call interpolator_init( sst_interp, trim(sst_file)//'.nc',Atm%lon_bnd,Atm%lat_bnd, data_out_of_bounds=(/CONSTANT/) )
 endif
 
-!mj we need lmask_navy for roughness even if surface_choice .eq. 1 or do_external_sst is .true.
+
+!mj scale evaporation (flux_q) over land
+allocate(flux_q_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
+!mj do we need a land-sea mask?
+if (trim(land_option) .ne. 'none') then
+   allocate(land_sea_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
+endif
+
+!mj we need land-sea mask for roughness even if surface_choice .eq. 1 or do_external_sst is .true.
 if (trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then 
-   allocate(lmask_navy(size(Atm%t_bot,1),size(Atm%t_bot,2)))
-   ocean_mask_worked = get_ocean_mask(Atm%lon_bnd,Atm%lat_bnd,lmask_navy)
+   ocean_mask_worked = get_ocean_mask(Atm%lon_bnd,Atm%lat_bnd,land_sea_mask)
+
    if(.not.ocean_mask_worked) then
       call error_mesg('get_ocean_mask','land_option="'//trim(land_option)//'"'// &
            ' and ocean_mask is not present or water data file does not exist', FATAL)
    endif
+
+   allocate(land_sea_mask_r(size(Atm%t_bot,1),size(Atm%t_bot,2)))
+   land_sea_mask_r = 0.0
+   where(land_sea_mask) land_sea_mask_r = 1.0
 endif
 
 
 if (surface_choice .eq. 1 .and. .not. do_external_sst)then
     allocate(land_sea_heat_capacity(size(Atm%t_bot,1), size(Atm%t_bot,2)))
+
     land_sea_heat_capacity = heat_capacity
    !mj ocean depth function of latitude
      if ( trop_capacity .ne. heat_capacity .or. np_cap_factor .ne. 1.0 ) then
@@ -669,22 +696,33 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
     
    
 
+
      if( trim(land_option) .eq. 'input' ) then
-        allocate(land_sea_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
+        ! read_data cannot deal with booleans, so need to pass via a real first
+        allocate(land_sea_mask_r(size(Atm%t_bot,1),size(Atm%t_bot,2)))
         if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') 'Reading land-sea mask from file INPUT/'//trim(land_sea_mask_file)//'.nc'
-        call read_data('INPUT/'//trim(land_sea_mask_file),trim(land_sea_mask_file),land_sea_mask,domain=Atm%domain)
-        where(land_sea_mask .gt. 0) land_sea_heat_capacity = land_capacity
+        call read_data('INPUT/'//trim(land_sea_mask_file),trim(land_sea_mask_file),land_sea_mask_r,domain=Atm%domain)
+        ! convert real mask to boolean mask
+        land_sea_mask = .false.
+        where( land_sea_mask_r .ge. 0.5 ) land_sea_mask = .true.
+        ! use boolean mask
+        where(.not. land_sea_mask) land_sea_heat_capacity = land_capacity
 ! mj use navy land-sea mask
      else if (trim(land_option) .eq. 'interpolated')then
-        where(.not. lmask_navy) land_sea_heat_capacity = land_capacity
+        where(.not. land_sea_mask) land_sea_heat_capacity = land_capacity
 ! mj land heat capacity function of surface topography
    else if(trim(land_option) .eq. 'zsurf')then
         allocate(zsurf(size(Atm%t_bot,1), size(Atm%t_bot,2)))
         call get_surf_geopotential(zsurf)
-        where ( zsurf > zsurf_cap_limit ) land_sea_heat_capacity = land_capacity
+        land_sea_mask = .true.
+        where ( zsurf > zsurf_cap_limit )
+           land_sea_mask = .false.
+           land_sea_heat_capacity = land_capacity
+        endwhere
        ! mj land heat capacity given in inputfile  
 ! mj land heat capacity given through ?landlon, ?landlat
      else if(trim(land_option) .eq. 'lonlat')then
+        land_sea_mask = .true.
         do j=1,size(Atm%t_bot,2)
            lat = 0.5*180/pi*( Atm%lat_bnd(j+1) + Atm%lat_bnd(j) )
            do i=1,size(Atm%t_bot,1)
@@ -692,11 +730,13 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
               do k=1,size(slandlat)
                  if ( lon >= slandlon(k) .and. lon <= elandlon(k) &
                       &.and. lat >= slandlat(k) .and. lat <= elandlat(k) )then
+                    land_sea_mask(i,j) = .false.
                     land_sea_heat_capacity(i,j) = land_capacity
                  endif
               enddo
            enddo
         enddo
+
      ! cig land heat capacity function of ocean_mask (if ocean mask exists), and use MJ's algorithm for deeper ocean mixed layer depth for poles vs tropics
      else if(trim(land_option) .eq. 'oceanmaskpole')then
         
@@ -717,7 +757,9 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
                  land_sea_heat_capacity(:,j) = loc_cap
               end if
            enddo
-           where(.not. lmask_navy) land_sea_heat_capacity = land_capacity
+
+           where(.not. land_sea_mask) land_sea_heat_capacity = land_capacity
+
         endif
      endif
 endif
@@ -956,6 +998,7 @@ if ( do_local_heating ) then
    do j=1,ngauss
       if ( hamp(j) .ne. 0. .and. pcenter(j) .lt. 0. ) then
          do_surface_heating = .true.
+         !print*,'PERFORMING SURFACE HEATING'
       endif
    enddo
 endif
@@ -977,7 +1020,8 @@ subroutine diag_field_init ( Time, atmos_axes )
   character(len=6) :: label_zm, label_zh
   real, dimension(2) :: trange = (/  100., 400. /), &
                         vrange = (/ -400., 400. /), &
-                        frange = (/ -0.01, 1.01 /)
+                        frange = (/ -0.01, 1.01 /), &
+                        erange = (/ -0.002,0.002/)  ! mj
 !-----------------------------------------------------------------------
 !  initializes diagnostic fields that may be output from this module
 !  (the id numbers may be referenced anywhere in this module)
@@ -1063,7 +1107,8 @@ subroutine diag_field_init ( Time, atmos_axes )
 
    id_q_flux     = &
    register_diag_field ( mod_name, 'evap',       atmos_axes, Time, &
-                        'evaporation rate',        'kg/m2/s'  )
+                        'evaporation rate',        'kg/m2/s', &
+                        range=erange )
 
    id_o_flux     = &
    register_diag_field (mod_name, 'oflx',        atmos_axes, Time, &
@@ -1118,10 +1163,14 @@ subroutine diag_field_init ( Time, atmos_axes )
                         'ref height interp factor for moisture','none' )
    id_albedo      = &
    register_diag_field ( mod_name, 'albedo',      atmos_axes, Time,     &
-                        'surface albedo','none' )
+                        'surface albedo','none', &
+                         range=(/0.0,1.0/) )            !mj
    id_heat        = & !mj
    register_diag_field ( mod_name, 'heat_capacity',atmos_axes, Time,     &
                         'mixed layer heat capacity','none' )
+   id_tdt_horiz  = & !mj
+   register_diag_field ( mod_name, 'tdt_sheat', atmos_axes, Time,     &
+                        'surface heating','K/s' )
    id_entrop_evap      = &
    register_diag_field ( mod_name, 'entrop_evap', atmos_axes, Time,     &
                         'entropy source from evap','kg/m2/s/K' )

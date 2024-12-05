@@ -111,7 +111,7 @@ logical, dimension(MAX_DATA_FIELDS) :: in_family9 = .false.
 logical         :: use_aerosol_timeseries = .false.
                                   ! use a timeseries providing inter-
                                   ! annual aerosol variation ?
-integer, dimension(6,MAX_DATA_FIELDS) :: aerosol_dataset_entry  =  1
+integer(8), dimension(6,MAX_DATA_FIELDS) :: aerosol_dataset_entry  =  1
                       ! time in aerosol data set corresponding to model
                       ! initial time  (yr, mo, dy, hr, mn, sc)
 logical, dimension(MAX_AEROSOL_FAMILIES) ::   &
@@ -125,7 +125,7 @@ real,dimension(2)   :: lonb_col = (/-999., -999./)
 real,dimension(2)   :: latb_col = (/-999., -999./)
                       ! latitudes defining the region to use for column
                       ! data calculation
-integer, dimension(6)  :: time_col = (/0,0,0,0,0,0/)
+integer(8), dimension(6)  :: time_col = (/0,0,0,0,0,0/)
                       ! time to use for column data calculation
 
 
@@ -429,7 +429,7 @@ character(len=64), dimension(:), pointer     :: aerosol_family_names
             else
               using_fixed_year_data(n) = .true.
               Aerosol_entry(n) = set_date (aerosol_dataset_entry(1,n), &
-                                           2, 1, 0, 0, 0)
+                                           INT(2,8), INT(1,8), INT(0,8), INT(0,8), INT(0,8))
               call error_mesg ('aerosol_mod', &
                   'Aerosol data is defined from a single annual cycle &
                  &for ' // trim(aerosol_names(n)) //   &
@@ -900,7 +900,7 @@ subroutine set_aerosol_time (Model_time, Entry, Aerosol_time)
 type(time_type), intent(in)   :: Model_time, Entry
 type(time_type), intent(out)  :: Aerosol_time
 
-      integer :: mo_yr, yr, mo, dy, hr, mn, sc, dum, dayspmn
+      integer(8) :: mo_yr, yr, mo, dy, hr, mn, sc, dum, dayspmn
 
       call get_date (Model_time, mo_yr, mo, dy, hr, mn, sc)
       call get_date (Entry, yr, dum,dum,dum,dum,dum)

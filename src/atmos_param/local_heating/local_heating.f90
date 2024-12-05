@@ -22,6 +22,9 @@ module local_heating_mod
   
   use rrtm_astro,only : equinox_day
 
+  use interpolator_mod,only : interpolate_type, interpolator_init, &
+                              interpolator, ZERO
+
   implicit none
   
   !-----------------------------------------------------------------------
@@ -30,14 +33,21 @@ module local_heating_mod
   
   !---------------------------------------------------------------------------------------------------------------
   !
+  type(interpolate_type),save :: heat_interp
   !-------------------- diagnostics fields -------------------------------
   integer :: id_tdt_lheat
   character(len=14) :: mod_name = 'local_heating'
   real :: missing_value = -999.
   !-----------------------------------------------------------------------
+  integer,parameter :: ngauss = 10                  ! # of possible heating terms
+  !-----------------------------------------------------------------------
   !-------------------- namelist -----------------------------------------
   !-----------------------------------------------------------------------
-  integer,parameter :: ngauss = 10
+  character(len=14)        :: heating_method = 'Gaussian' ! kind of heating. 'Gaussian' or 'from_file_2d' or 'from_file_3d'
+  !------------------- external heating file -----------------------------
+  character(len=256)       :: heating_file = 'heating' ! filename if heating_method == 'from_file_*'
+  character(len=256)       :: heating_name = 'heating' ! variable name within heating_file_*
+  !----------------- Gaussian heating ------------------------------------
   real,dimension(ngauss)   :: hamp      = 0.        ! heating amplitude [K/d]
   real,dimension(ngauss)   :: lonwidth  = -1.       ! zonal width of Gaussian heating [deg]
   real,dimension(ngauss)   :: loncenter = -1.       ! zonal center of Gaussian heating [deg], zonally symmetric if <0
@@ -64,28 +74,31 @@ module local_heating_mod
                                                     ! if < 0, period is in fraction of year
                                                     ! if > 0, period is in days
   
-  namelist /local_heating_nml/ hamp \
-                               ,lonwidth,loncenter,lonmove \
-                               ,latwidth,latcenter,latmove \
-                               ,pwidth,pcenter,pmove       \
-                               ,is_periodic                \
-                               ,twidth,tphase,tperiod
+  namelist /local_heating_nml/ heating_method &
+                               ,heating_file,heating_name &
+                               ,hamp &
+                               ,lonwidth,loncenter,lonmove &
+                               ,latwidth,latcenter,latmove &
+                               ,pwidth,pcenter,pmove       &
+                               ,is_periodic                &
+                               ,twidth,tphase,tperiod 
   
   
   ! local variables
   real,dimension(ngauss) :: logpc
-  integer                :: daysperyear
+  integer(8)             :: daysperyear
   logical                :: do_3d_heating
   
 contains
   
-  subroutine local_heating_init(axes, Time)
+  subroutine local_heating_init(axes, Time, lonb, latb)
     implicit none
     integer, intent(in), dimension(4) :: axes
     type(time_type), intent(in)       :: Time
+    real,dimension(:),intent(in)      :: lonb,latb
     !-----------------------------------------------------------------------
-    integer :: seconds
-    integer :: unit, io, ierr, n
+    integer(8) :: seconds
+    integer    :: unit, io, ierr, n
 
     !     ----- read namelist -----
 
@@ -98,26 +111,33 @@ contains
        enddo
 10     call close_file (unit)
     endif
-    
-   ! ---- convert input units to code units  -----
-    call get_time(length_of_year(),seconds,daysperyear)
+
     do_3d_heating = .false.
-    do n = 1,ngauss
-       pcenter(n)   = pcenter(n)*100      ! convert hPa to Pa
-       if ( pcenter(n) .gt. 0.0 ) do_3d_heating = .true.
-       hamp(n)      = hamp(n)/86400.      ! convert K/d to K/s
-       loncenter(n) = loncenter(n)/RADIAN ! convert degrees to radians
-       lonwidth(n)  = lonwidth(n)/RADIAN  ! convert degrees to radians
-       lonmove(n)   = lonmove(n)/RADIAN/86400. ! convert degrees/day to radians/s
-       latcenter(n) = latcenter(n)/RADIAN ! convert degrees to radians
-       latwidth(n)  = latwidth(n)/RADIAN  ! convert degrees to radians
-       latmove(n)   = latmove(n)/RADIAN/86400. ! convert degrees/day to radians/s
-       pmove(n)     = pmove(n)*100./86400.! convert hPa/day to Pa/s
-       if ( tperiod(n) .lt. 0.0 ) tperiod(n) = -tperiod(n)*daysperyear ! convert year fraction to day of year
-       twidth(n)    = twidth(n)*86400     ! convert to seconds
-       tphase(n)    = tphase(n)*86400     ! convert to seconds
-       tperiod(n)   = tperiod(n)*86400    ! convert to seconds
-    enddo
+    if ( heating_method(1:9) .eq. 'from_file' ) then
+       if ( trim(heating_method) .eq. 'from_file_3d' ) do_3d_heating = .true.
+       call interpolator_init(heat_interp, trim(heating_file)//'.nc', lonb, latb, data_out_of_bounds=(/ZERO/))
+    else if ( trim(heating_method) .eq. 'Gaussian' ) then
+   ! ---- convert input units to code units  -----
+       call get_time(length_of_year(),seconds,daysperyear)
+       do n = 1,ngauss
+          pcenter(n)   = pcenter(n)*100      ! convert hPa to Pa
+          if ( pcenter(n) .gt. 0.0 ) do_3d_heating = .true.
+          hamp(n)      = hamp(n)/86400.      ! convert K/d to K/s
+          loncenter(n) = loncenter(n)/RADIAN ! convert degrees to radians
+          lonwidth(n)  = lonwidth(n)/RADIAN  ! convert degrees to radians
+          lonmove(n)   = lonmove(n)/RADIAN/86400. ! convert degrees/day to radians/s
+          latcenter(n) = latcenter(n)/RADIAN ! convert degrees to radians
+          latwidth(n)  = latwidth(n)/RADIAN  ! convert degrees to radians
+          latmove(n)   = latmove(n)/RADIAN/86400. ! convert degrees/day to radians/s
+          pmove(n)     = pmove(n)*100./86400.! convert hPa/day to Pa/s
+          if ( tperiod(n) .lt. 0.0 ) tperiod(n) = -tperiod(n)*daysperyear ! convert year fraction to day of year
+          twidth(n)    = twidth(n)*86400     ! convert to seconds
+          tphase(n)    = tphase(n)*86400     ! convert to seconds
+          tperiod(n)   = tperiod(n)*86400    ! convert to seconds
+       enddo
+    else
+       call error_mesg('local_heating_init','Parameter heating_method must be one of Gaussian, from_file_2d or from_file_3d',FATAL)
+    endif
   !----
   !------------ initialize diagnostic fields ---------------
     ! only needed if we actually do 3D heating
@@ -136,12 +156,12 @@ contains
   !-------------------- computing localized heating ----------------------
   !-----------------------------------------------------------------------
   
-  subroutine local_heating(is,js,Time,lon,lat,p_full,tdt_tot)
+  subroutine local_heating(is,js,Time,lon,lat,p_full,p_half,tdt_tot)
     implicit none
     integer, intent(in)                  :: is, js
     type(time_type),intent(in)           :: Time
     real, dimension(:,:)  ,intent(in)    :: lon,lat
-    real, dimension(:,:,:),intent(in)    :: p_full
+    real, dimension(:,:,:),intent(in)    :: p_full,p_half
     real, dimension(:,:,:),intent(inout) :: tdt_tot
     ! local variables
     integer :: i,j,k,n
@@ -155,29 +175,33 @@ contains
     ! if local heating is 2D only it is done via horizontal_heating
     !  within simple_surface.f90
     if ( do_3d_heating ) then
-       ! horizontal heating first
-       call horizontal_heating(Time,lon,lat,horiz_tdt,tcenter)
-       ! then vertical heating
-       do n = 1,ngauss
-          if ( hamp(n) .ne. 0. .and. pcenter(n) .gt. 0. ) then
-             ! add vertical component
-             do k=1,size(p_full,3)
-                do j = 1,size(lon,2)
-                   do i = 1,size(lon,1)
-                      ! vertical component
-                      if ( pwidth(n) .lt. 0.0 ) then
-                         p_factor = 1.0
-                      else
-                         logp = log10(p_full(i,j,k))
-                         p_factor = exp(-(logp-tcenter(3,n))**2/(2*(pwidth(n))**2))
-                      endif
-                      ! everything together
-                      tdt(i,j,k) = tdt(i,j,k) + horiz_tdt(i,j)*p_factor
+       if ( trim(heating_method) .eq. 'from_file_3d' ) then
+          call interpolator( heat_interp, Time, p_half, tdt, trim(heating_name))
+       else
+          ! horizontal heating first
+          call horizontal_heating(Time,lon,lat,horiz_tdt,tcenter)
+          ! then vertical heating
+          do n = 1,ngauss
+             if ( hamp(n) .ne. 0. .and. pcenter(n) .gt. 0. ) then
+                ! add vertical component
+                do k=1,size(p_full,3)
+                   do j = 1,size(lon,2)
+                      do i = 1,size(lon,1)
+                         ! vertical component
+                         if ( pwidth(n) .lt. 0.0 ) then
+                            p_factor = 1.0
+                         else
+                            logp = log10(p_full(i,j,k))
+                            p_factor = exp(-(logp-tcenter(3,n))**2/(2*(pwidth(n))**2))
+                         endif
+                         ! everything together
+                         tdt(i,j,k) = tdt(i,j,k) + horiz_tdt(i,j)*p_factor
+                      enddo
                    enddo
                 enddo
-             enddo
-          endif
-       enddo
+             endif
+          enddo
+       endif
     endif
      
     tdt_tot = tdt_tot + tdt
@@ -202,18 +226,24 @@ contains
     real, dimension(3,ngauss),intent(out),optional :: tcenter
     ! local variables
     integer :: i,j,d,n,deltasecs
-    integer :: seconds,days,fullseconds
+    integer(8) :: seconds,days,fullseconds
     real    :: tcent(3),t_factor,targ,halfper
     real, dimension(size(lon,1),size(lon,2)) :: lon_factor,lat_factor
     logical :: do_horiz
+
+    if ( present(tcenter) )then
+       tcenter = 0.0
+    endif
+    
+    if (trim(heating_method) .eq. 'from_file_2d')then
+       call interpolator(heat_interp, Time, horiz_tdt, trim(heating_name))
+       return
+    endif
     
     call get_time(Time,seconds,days)
     fullseconds = days*86400+seconds
 
     horiz_tdt = 0.0
-    if ( present(tcenter) )then
-       tcenter = 0.0
-    endif
     do n = 1,ngauss
        ! check if heating should be added
        do_horiz = .false.

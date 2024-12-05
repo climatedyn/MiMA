@@ -217,8 +217,8 @@ module time_interp_external_mod
       character(len=128) :: name, msg, calendar_type, timebeg, timeend
       integer :: siz(4), siz_in(4), gxsize, gysize,gxsize_max, gysize_max
       type(time_type) :: tdiff
-      integer :: yr, mon, day, hr, minu, sec
-      integer :: yr2, mon2, day2, hr2, min2, sec2
+      integer(8) :: yr, mon, day, hr, minu, sec
+      integer(8) :: yr2, mon2, day2, hr2, min2, sec2
       integer :: len, natts, nfile, nfields_orig, nbuf
 
       if (.not. module_initialized) call mpp_error(FATAL,'Must call time_interp_external_init first')
@@ -596,7 +596,7 @@ module time_interp_external_mod
       
       integer :: nx, ny, nz, interp_method, t1, t2
       integer :: i1, i2, isc, iec, jsc, jec, mod_time
-      integer :: yy, mm, dd, hh, min, ss
+      integer(8) :: yy, mm, dd, hh, min, ss
 
       integer :: isu, ieu, jsu, jeu 
           ! these are boundaries of the updated portion of the "data" argument
@@ -705,7 +705,7 @@ module time_interp_external_mod
       type(time_type), intent(inout), dimension(:) :: Time
 
       integer :: ntime, n
-      integer :: yr, mon, dy, hr, minu, sec
+      integer(8) :: yr, mon, dy, hr, minu, sec
       
       ntime = size(Time(:))
 
@@ -975,10 +975,10 @@ logical, allocatable, dimension(:,:,:) :: mask_d
 type(domain2d) :: domain, domain_out
 integer :: layout(2), fld_size(4)
 integer :: isc, iec, jsc, jec, isd, ied, jsd, jed
-integer :: yy, mm, dd, hh, ss
+integer(8) :: yy, mm, dd, hh, ss
 real :: sm,mx,mn
 character(len=12) :: cal_type
-integer :: ntime=12,year0=1991,month0=1,day0=1,days_inc=31
+integer(8) :: ntime=12,year0=1991,month0=1,day0=1,days_inc=31
 type(horiz_interp_type) :: Hinterp
 type(axistype) :: Axis_centers(4), Axis_bounds(4)
 real :: lon_out(180,89), lat_out(180,89)

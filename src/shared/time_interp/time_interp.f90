@@ -31,7 +31,8 @@ use time_manager_mod, only: time_type, get_date, set_date, set_time, &
                             operator(+), operator(-), operator(>),   &
                             operator(<), operator( // ), operator( / ),  &
                             operator(>=), operator(<=), operator( * ), &
-                            operator(==)
+                            operator(==), &
+                            print_time
 
 use          fms_mod, only: write_version_number, &
                             error_mesg, FATAL
@@ -157,7 +158,7 @@ integer, public, parameter :: NONE=0, YEAR=1, MONTH=2, DAY=3
    integer, parameter :: halfday = secday/2
 
    integer :: mtime
-   integer :: yrmod, momod, dymod
+   integer(8) :: yrmod, momod, dymod
    logical :: mod_leapyear
 
    character(len=128) :: version='$Id: time_interp.f90,v 12.0 2005/04/14 18:01:42 fms Exp $'
@@ -191,8 +192,9 @@ contains
    type(time_type), intent(in)  :: Time 
    real           , intent(out) :: weight
 
-   integer         :: year, month, day, hour, minute, second
+   integer(8)      :: year, month, day, hour, minute, second
    type(time_type) :: Year_beg, Year_end
+   integer(8),parameter :: one=1
 
 
    if ( .not. module_is_initialized ) call time_interp_init
@@ -201,8 +203,8 @@ contains
 
      call get_date (Time, year, month, day, hour, minute, second) 
 
-     Year_beg = set_date(year  , 1, 1) 
-     Year_end = set_date(year+1, 1, 1)
+     Year_beg = set_date(year    , one, one) 
+     Year_end = set_date(year+one, one, one)
 
      weight = (Time - Year_beg) // (Year_end - Year_beg)
 
@@ -238,7 +240,7 @@ contains
    real           , intent(out) :: weight
    integer        , intent(out) :: year1, year2
 
-   integer :: year, month, day, hour, minute, second
+   integer(8) :: year, month, day, hour, minute, second
    type (time_type) :: Mid_year, Mid_year1, Mid_year2
 
 
@@ -282,8 +284,8 @@ contains
    real           , intent(out) :: weight
    integer        , intent(out) :: year1, year2, month1, month2
 
-   integer :: year, month, day, hour, minute, second,  &
-              mid_month, cur_month, mid1, mid2
+   integer(8) :: year, month, day, hour, minute, second
+   integer :: mid_month, cur_month, mid1, mid2
 
    if ( .not. module_is_initialized ) call time_interp_init()
 
@@ -301,7 +303,7 @@ contains
            if (month2 > monyear)  year2 = year2+1
            if (month2 > monyear) month2 = 1
            mid1 = mid_month
-           mid2 = days_in_month(set_date(year2,month2,2)) * halfday
+           mid2 = days_in_month(set_date(INT(year2,8),INT(month2,8),INT(2,8))) * halfday
            weight = real(cur_month - mid1) / real(mid1+mid2)
       else
     ! current time is before mid point of current month
@@ -309,7 +311,7 @@ contains
            year1  = year;  month1 = month-1
            if (month1 < 1)  year1 = year1-1
            if (month1 < 1) month1 = monyear
-           mid1 = days_in_month(set_date(year1,month1,2)) * halfday
+           mid1 = days_in_month(set_date(INT(year1,8),INT(month1,8),INT(2,8))) * halfday
            mid2 = mid_month
            weight = real(cur_month + mid1) / real(mid1+mid2)
       endif
@@ -335,7 +337,7 @@ contains
    real           , intent(out) :: weight
    integer        , intent(out) :: year1, year2, month1, month2, day1, day2
 
-   integer :: year, month, day, hour, minute, second, sday
+   integer(8) :: year, month, day, hour, minute, second, sday
 
    if ( .not. module_is_initialized ) call time_interp_init()
 
@@ -368,7 +370,7 @@ contains
                if (month1 < 1) then
                    month1 = monyear;  year1 = year1-1
                endif
-               day1 = days_in_month(set_date(year1,month1,2))
+               day1 = days_in_month(set_date(INT(year1,8),INT(month1,8),INT(2,8)))
            endif
       endif
 
@@ -394,11 +396,12 @@ logical, intent(in), optional :: correct_leap_year_inconsistency
   
   type(time_type) :: Period, T
   integer :: is, ie
-  integer :: ys,ms,ds,hs,mins,ss ! components of the starting date
-  integer :: ye,me,de,he,mine,se ! components of the ending date
-  integer :: yt,mt,dt,ht,mint,st ! components of the current date
-  integer :: dt1                 ! temporary value for day 
+  integer(8) :: ys,ms,ds,hs,mins,ss ! components of the starting date
+  integer(8) :: ye,me,de,he,mine,se ! components of the ending date
+  integer(8) :: yt,mt,dt,ht,mint,st ! components of the current date
+  integer(8) :: dt1                 ! temporary value for day 
   logical :: correct_lyr
+  integer(8),parameter :: one=1
 
   if ( .not. module_is_initialized ) call time_interp_init
   
@@ -422,13 +425,13 @@ logical, intent(in), optional :: correct_leap_year_inconsistency
      call get_date(T,yt,mt,dt,ht,mint,st)
      yt = ys+modulo(yt-ys,ye-ys)
      dt1 = dt
-     if(mt==2.and.dt==29.and..not.leap_year(set_date(yt,1,1))) dt1=28
+     if(mt==2.and.dt==29.and..not.leap_year(set_date(yt,one,one))) dt1=28
      T = set_date(yt,mt,dt1,ht,mint,st)
      if (T < Time_beg) then
         ! the requested time is within the first year, 
         ! but before the starting date. So we shift it to the
         ! last year.
-        if(mt==2.and.dt==29.and..not.leap_year(set_date(ye,1,1))) dt=28
+        if(mt==2.and.dt==29.and..not.leap_year(set_date(ye,one,one))) dt=28
         T = set_date(ye,mt,dt,ht,mint,st)
      endif
   else
@@ -518,7 +521,8 @@ real             , intent(out) :: weight
 integer          , intent(out) :: index1, index2
 integer, optional, intent(in)  :: modtime
 
-integer :: i, n, hr, mn, se
+integer :: i, n
+integer(8) :: hr, mn, se
 type(time_type) :: T, T1, T2, Ts, Te, Td, Period, Time_mod
 
   if ( .not. module_is_initialized ) call time_interp_init
@@ -552,14 +556,14 @@ type(time_type) :: T, T1, T2, Ts, Te, Td, Period, Time_mod
      case (NONE)
        ! do nothing
      case (YEAR)
-         Period = set_time(0,days_in_year(Time_mod))
+         Period = set_time(INT(0,8),INT(days_in_year(Time_mod),8))
      case (MONTH)
        ! month length must be equal
          if (days_in_month(Time_mod) /= days_in_month(Time)) &
          call error_handler ('modulo months must have same length')
-         Period = set_time(0,days_in_month(Time_mod))
+         Period = set_time(INT(0,8),INT(days_in_month(Time_mod),8))
      case (DAY)
-         Period = set_time(0,1)
+         Period = set_time(INT(0,8),INT(1,8))
      case default
          call error_handler ('invalid value for argument modtime')
   end select
@@ -578,7 +582,12 @@ type(time_type) :: T, T1, T2, Ts, Te, Td, Period, Time_mod
 
 ! time falls before starting list value
   else if ( T < Ts ) then
-     if (mtime == NONE) call error_handler ('time before range of list')
+     if (mtime == NONE)then
+        call print_time(Timelist(1),'First time in file:')
+        call print_time(T,'Model time:')
+        call print_time(Timelist(n),'Last time in file:')
+        call error_handler ('time before range of list')
+     endif
      Td = Te-Ts
      weight = 1. - ((Ts-T) // (Period-Td))
      index1 = n
@@ -586,7 +595,12 @@ type(time_type) :: T, T1, T2, Ts, Te, Td, Period, Time_mod
 
 ! time falls after ending list value
   else if ( T > Te ) then
-     if (mtime == NONE) call error_handler ('time after range of list')
+     if (mtime == NONE)then
+        call print_time(Timelist(1),'First time in file:')
+        call print_time(T,'Model time:')
+        call print_time(Timelist(n),'Last time in file:')
+        call error_handler ('time after range of list')
+     endif
      Td = Te-Ts
      weight = (T-Te) // (Period-Td)
      index1 = n
@@ -603,10 +617,11 @@ end subroutine time_interp_list
 
    integer, intent(in) :: year
    type (time_type)    :: year_midpt, year_beg, year_end
+   integer(8),parameter :: one=1
 
 
-   year_beg = set_date(year  , 1, 1)
-   year_end = set_date(year+1, 1, 1)
+   year_beg = set_date(INT(year,8)    , one, one)
+   year_end = set_date(INT(year,8)+one, one, one)
 
    year_midpt = (year_beg + year_end) / 2
    
@@ -618,15 +633,19 @@ end subroutine time_interp_list
 
    integer, intent(in) :: year, month
    type (time_type)    :: month_midpt, month_beg, month_end
+   integer(8),parameter:: one=1
+   integer(8)          :: yearl,monthl
 
+   yearl = INT(year,8)
+   monthl= INT(year,8)
 !  --- beginning of this month ---
-   month_beg = set_date(year, month, 1)
+   month_beg = set_date(yearl, monthl, one)
 
 !  --- start of next month ---
    if (month < 12) then
-      month_end = set_date(year, month+1, 1)
+      month_end = set_date(yearl, monthl+one, one)
    else
-      month_end = set_date(year+1, 1, 1)
+      month_end = set_date(yearl+one, one, one)
    endif
 
    month_midpt = (month_beg + month_end) / 2
@@ -638,7 +657,7 @@ end subroutine time_interp_list
 function set_modtime (Tin) result (Tout)
 type(time_type), intent(in) :: Tin
 type(time_type)             :: Tout
-integer :: yr, mo, dy, hr, mn, se
+integer(8) :: yr, mo, dy, hr, mn, se
 
   select case (mtime)
     case (NONE)

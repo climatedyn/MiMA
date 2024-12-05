@@ -150,7 +150,7 @@ contains
 !-----------------------------------------------------------------------
 !mj constant drag TOA
  real :: minp,cosday
- integer :: seconds,days,daysperyear
+ integer(8) :: seconds,days,daysperyear
 !-----------------------------------------------------------------------
 
    if (.not.module_is_initialized) call error_mesg ('damping_driver',  &

@@ -2708,8 +2708,8 @@ logical,                intent(inout) :: do_gas_tf_calc,&
 !  local variables:
 
       type(time_type)      :: Time_since_gas_start
-      integer              :: seconds, days, minutes_from_start, alarm
-      integer              :: year, month, day, hour, minute, second
+      integer(8)           :: seconds, days, minutes_from_start, alarm
+      integer(8)           :: year, month, day, hour, minute, second
       character(len=4)     :: chvers, chvers2, chvers3, chvers4, &
                               chvers5, chvers6
       character(len=12)    :: chvers10

@@ -874,7 +874,7 @@ logical :: used, topfound
  
    integer, dimension(MAX_PTS) :: nsave
    integer :: iloc(MAX_PTS), jloc(MAX_PTS), nn, npts, nnsave
-   integer :: year, month, day, hour, minute, second
+   integer(8) :: year, month, day, hour, minute, second
    character(len=16) :: mon
 
 !-----------------------------------------------------------------------

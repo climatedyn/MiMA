@@ -1,5 +1,5 @@
 module purge
 module load intel-compiler/2020.1.217
-module load openmpi/4.0.2
+module load openmpi/3.1.4
 module load netcdf/4.7.3
 ulimit -s unlimited

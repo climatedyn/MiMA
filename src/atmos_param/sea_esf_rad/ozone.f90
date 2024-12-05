@@ -122,7 +122,7 @@ character(len=24)  ::   gfdl_zonal_ozone_type = 'seasonally_varying'
                       ! 'seasonally_varying'
 logical            ::   do_mcm_o3_clim = .false.
                       ! treat ozone as in the manabe climate model ?
-integer, dimension(6) ::       &
+integer(8), dimension(6) ::       &
                         ozone_dataset_entry  = (/ 1, 1, 1, 0, 0, 0 /)
                       ! time in ozone data set corresponding to model
                       ! initial time  (yr, mo, dy, hr, mn, sc)
@@ -132,7 +132,7 @@ real,dimension(2)  :: lonb_col = (/-999., -999./)
 real,dimension(2)  :: latb_col = (/-999., -999./)
                       ! latitudes defining the region to use for column
                       ! data calculation
-integer, dimension(6) :: time_col = (/0,0,0,0,0,0/)
+integer(8), dimension(6) :: time_col = (/0,0,0,0,0,0/)
                       ! time to use for column calculation
 
 
@@ -402,7 +402,7 @@ real, dimension(:),   intent(in) :: latb, lonb
 !    to ozone_dataset_entry as a time_type variable.
 !----------------------------------------------------------------------
         Ozone_entry  = set_date (ozone_dataset_entry(1), &
-                                  2,1,0,0,0)
+                                  INT(2,8),INT(1,8),INT(0,8),INT(0,8),INT(0,8))
         call error_mesg ('ozone_mod', &
            'Ozone data is defined from a single annual cycle &
                 &- no interannual variation', NOTE)
@@ -1624,8 +1624,8 @@ real, dimension(:,:,:), intent(out)     :: model_data
       real, dimension(1,1, size(p_half,3)-1) :: ozone_data
       real, dimension(1,1, size(p_half,3)) :: p_half_col
       type(time_type) :: Ozone_time
-      integer         :: yr, mo, dy, hr, mn, sc, dum
-      integer         :: dayspmn, mo_yr
+      integer(8)         :: yr, mo, dy, hr, mn, sc, dum
+      integer(8)         :: dayspmn, mo_yr
       integer         :: i, j, k
 
       if(trim(basic_ozone_type) == 'time_varying') then

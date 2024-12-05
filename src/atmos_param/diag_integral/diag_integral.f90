@@ -1042,9 +1042,9 @@ type(time_type)  :: Time
 !---------------------------------------------------------------------
 !  local variables:
 
-      integer          :: sec     ! seconds corresponding to the input
+      integer(8)          :: sec     ! seconds corresponding to the input
                                   ! variable atime
-      integer          :: day = 0 ! day component of time_type variable
+      integer(8)          :: day = 0 ! day component of time_type variable
 
 !--------------------------------------------------------------------
 !    convert the input time to seconds, regardless of input units.
@@ -1531,7 +1531,7 @@ real                         :: atime
 !---------------------------------------------------------------------
 !   local variables:
 
-      integer      :: sec, day  ! components of time_type variable
+      integer(8)      :: sec, day  ! components of time_type variable
 
 !-------------------------------------------------------------------
 !    get_axis_time converts the time_type input variable into units of

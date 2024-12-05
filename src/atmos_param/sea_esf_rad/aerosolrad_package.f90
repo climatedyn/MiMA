@@ -673,12 +673,12 @@ real, dimension(:),              intent(in)  :: lonb,latb
 !    to volcanic_dataset_entry as a time_type variable.
 !----------------------------------------------------------------------
       Model_init_time = get_base_time()
-      Volcanic_entry  = set_date (volcanic_dataset_entry(1), &
-                                  volcanic_dataset_entry(2), &
-                                  volcanic_dataset_entry(3), &
-                                  volcanic_dataset_entry(4), &
-                                  volcanic_dataset_entry(5), &
-                                  volcanic_dataset_entry(6))
+      Volcanic_entry  = set_date (INT(volcanic_dataset_entry(1),8), &
+                                  INT(volcanic_dataset_entry(2),8), &
+                                  INT(volcanic_dataset_entry(3),8), &
+                                  INT(volcanic_dataset_entry(4),8), &
+                                  INT(volcanic_dataset_entry(5),8), &
+                                  INT(volcanic_dataset_entry(6),8))
       if (using_volcanic_sw_files .or.  &
           using_volcanic_lw_files) then
         call print_date(Volcanic_entry , str='Data from volcano &
@@ -993,7 +993,7 @@ type(aerosol_properties_type), intent(inout) :: Aerosol_props_out
       type(time_type) :: Volcano_time
       integer  :: na, nw, ni, nmodel       ! do-loop indices
       integer  :: n
-      integer  :: yr, mo, dy, hr, mn, sc
+      integer(8)  :: yr, mo, dy, hr, mn, sc
      
 !---------------------------------------------------------------------
 !    be sure module has been initialized.
@@ -1110,7 +1110,7 @@ type(aerosol_properties_type), intent(inout) :: Aerosol_props_out
             need_lw_ext = .true.
           else
             call get_date (Volcano_time, yr,mo,dy,hr,mn,sc)
-            Volcano_time =  set_date (yr, mo,15,12,0,0)
+            Volcano_time =  set_date (yr, mo,INT(15,8),INT(12,8),INT(0,8),INT(0,8))
             if (mo_save_set) then
               if (mo /= mo_save) then
                 need_sw_ext = .true.

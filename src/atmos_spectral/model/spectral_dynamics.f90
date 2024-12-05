@@ -13,7 +13,11 @@ use       time_manager_mod, only: time_type, get_time, set_time, get_calendar_ty
 use      field_manager_mod, only: MODEL_ATMOS, parse
 
 use     tracer_manager_mod, only: get_number_tracers, query_method, get_tracer_index, get_tracer_names, NO_TRACER, &
-                                  tracer_requires_init, query_tracer_init
+                                  tracer_requires_init, query_tracer_init, &
+                                  set_tracer_profile, have_initialized_tracer
+use atmos_ozone_tracer_mod, only: atmos_ozone_tracer_init, &
+                                  atmos_ozone_tracer_sourcesink, &
+                                  atmos_ozone_tracer_end
 
 use       diag_manager_mod, only: diag_axis_init, register_diag_field, register_static_field, send_data
 
@@ -92,6 +96,7 @@ real,    allocatable, dimension(:) :: pk, bk, dpk, dbk
 
 complex, allocatable, dimension(:,:,:,:)   :: vors, divs, ts ! last dimension is for time level
 complex, allocatable, dimension(:,:,:  )   :: ln_ps          ! last dimension is for time level
+complex, allocatable, dimension(:,:,:,:)   :: tf
 complex, allocatable, dimension(:,:,:,:,:) :: spec_tracers   ! 4'th dimension is for time level, last dimension is for tracer number
 
 real, allocatable, dimension(:,:,:    ) :: psg               ! last dimension is for time level
@@ -157,16 +162,18 @@ real    :: damping_coeff       = 1.15740741e-4, & ! (one tenth day)**-1
            p_press             = .1,  &
            p_sigma             = .3,  &
            exponent            = 2.5, &
-         ocean_topog_smoothing = .93, &
+           ocean_topog_smoothing = .93, &
            initial_sphum       = 0.0, &
-     reference_sea_level_press =  101325. , &
-           water_correction_limit = 0.e2 !mj
+           reference_sea_level_press =  101325. , &
+           water_correction_limit = 0.e2, & !mj only correct water mass below this pressure
+           random_perturbation = 0.0        !mj add random temperature perturbation for ensembles
 
 !epg+ray: this next namelist variable allows you to upload initial conditions
 !         u,v,T, ps, and q must be specified (as: ucomp, vcomp, temp, ps, and sphum, respecitively)
 !         in a netcdf file called "$(initial_file).nc" and placed in the INPUT/ directory
 logical :: specify_initial_conditions = .false.
-character(len=32) :: initial_file = 'initial_conditions'
+character(len=64) :: initial_file = 'initial_conditions'
+
 
 
 
@@ -186,7 +193,8 @@ namelist /spectral_dynamics_nml/ use_virtual_temperature, damping_option,       
                                  p_press, p_sigma, exponent, ocean_topog_smoothing, initial_sphum,   &
                                  valid_range_t, eddy_sponge_coeff, zmu_sponge_coeff, zmv_sponge_coeff, &
                                  print_interval, num_steps,                                          &
-                                 water_correction_limit, specify_initial_conditions, initial_file     !mj + epg
+                                 water_correction_limit, specify_initial_conditions, initial_file,   &  !mj + epg
+                                 random_perturbation                                                    !mj
 
 contains
 
@@ -200,7 +208,8 @@ logical, intent(out) :: dry_model_out
 integer, intent(out) :: nhum_out
 logical, optional, intent(in), dimension(:,:) :: ocean_mask
 
-integer :: num_total_wavenumbers, unit, k, seconds, days, ierr, io, ntr, nsphum, nmix_rat
+integer :: num_total_wavenumbers, unit, k, ierr, io, ntr, nsphum, nmix_rat
+integer(8) :: seconds,days
 logical :: south_to_north = .true.
 real    :: ref_surf_p_implicit, robert_coeff_tracers
 
@@ -455,7 +464,7 @@ endif
 call set_domain(grid_domain)
 
 call get_time(Time_step, seconds, days)
-dt_real = 86400*days + seconds
+dt_real = INT(86400,8)*days + seconds
 
 module_is_initialized = .true.
 return
@@ -484,6 +493,8 @@ character(len=4) :: ch1,ch2,ch3,ch4,ch5,ch6
 type(interpolate_type) :: init_conds
 real, allocatable,dimension(:,:,:) :: lmptmp
 real, allocatable,dimension(:,:,:) :: p_half,p_full,ln_p_full,ln_p_half
+! mj: random perturbation
+real :: randn
 ! ------
 
 file = 'INPUT/spectral_dynamics.res.nc'
@@ -514,7 +525,32 @@ if(file_exist(trim(file))) then
   call read_data(trim(file), 'pk', pk, no_domain=.true.)
   call read_data(trim(file), 'bk', bk, no_domain=.true.)
   do nt=1,num_time_levels
-    call read_data(trim(file), 'vors_real',  real_part, spectral_domain, timelevel=nt)
+     call read_data(trim(file), 'vors_real',  real_part, spectral_domain, timelevel=nt)
+     if ( random_perturbation .gt. 0. ) then
+        call RANDOM_SEED()
+        call RANDOM_NUMBER(randn)
+        random_perturbation = randn*random_perturbation*1.e-6
+        if(ms <= 1 .and. me >= 1 .and. ns <= 3 .and. ne >= 3) then
+           real_part(2-ms,4-ns,num_levels  ) = real_part(2-ms,4-ns,num_levels  ) + random_perturbation 
+           real_part(2-ms,4-ns,num_levels-1) = real_part(2-ms,4-ns,num_levels-1) + random_perturbation 
+           real_part(2-ms,4-ns,num_levels-2) = real_part(2-ms,4-ns,num_levels-2) + random_perturbation 
+        endif
+        if(ms <= 5 .and. me >= 5 .and. ns <= 3 .and. ne >= 3) then
+           real_part(6-ms,4-ns,num_levels  ) = real_part(6-ms,4-ns,num_levels  ) + random_perturbation 
+           real_part(6-ms,4-ns,num_levels-1) = real_part(6-ms,4-ns,num_levels-1) + random_perturbation 
+           real_part(6-ms,4-ns,num_levels-2) = real_part(6-ms,4-ns,num_levels-2) + random_perturbation 
+        endif
+        if(ms <= 1 .and. me >= 1 .and. ns <= 2 .and. ne >= 2) then
+           real_part(2-ms,3-ns,num_levels  ) = real_part(2-ms,3-ns,num_levels  ) + random_perturbation 
+           real_part(2-ms,3-ns,num_levels-1) = real_part(2-ms,3-ns,num_levels-1) + random_perturbation 
+           real_part(2-ms,3-ns,num_levels-2) = real_part(2-ms,3-ns,num_levels-2) + random_perturbation 
+        endif
+        if(ms <= 5 .and. me >= 5 .and. ns <= 2 .and. ne >= 2) then
+           real_part(6-ms,3-ns,num_levels  ) = real_part(6-ms,3-ns,num_levels  ) + random_perturbation 
+           real_part(6-ms,3-ns,num_levels-1) = real_part(6-ms,3-ns,num_levels-1) + random_perturbation 
+           real_part(6-ms,3-ns,num_levels-2) = real_part(6-ms,3-ns,num_levels-2) + random_perturbation 
+        endif
+     endif
     call read_data(trim(file), 'vors_imag',  imag_part, spectral_domain, timelevel=nt)
     do k=1,num_levels; do n=ns,ne; do m=ms,me
       vors(m,n,k,nt) = cmplx(real_part(m,n,k),imag_part(m,n,k))
@@ -537,6 +573,7 @@ if(file_exist(trim(file))) then
     call read_data(trim(file), 'ug',   ug(:,:,:,nt), grid_domain, timelevel=nt)
     call read_data(trim(file), 'vg',   vg(:,:,:,nt), grid_domain, timelevel=nt)
     call read_data(trim(file), 'tg',   tg(:,:,:,nt), grid_domain, timelevel=nt)
+    !mj need to add vorticity perturbation here if random_perturbation > 0
     call read_data(trim(file), 'psg', psg(:,:,  nt), grid_domain, timelevel=nt)
     do ntr = 1,num_tracers
       tr_name = trim(tracer_attributes(ntr)%name)
@@ -546,8 +583,9 @@ if(file_exist(trim(file))) then
         call read_data(trim(file), trim(tr_name)//'_imag', imag_part, spectral_domain, timelevel=nt)
         do k=1,num_levels; do n=ns,ne; do m=ms,me
           spec_tracers(m,n,k,nt,ntr) = cmplx(real_part(m,n,k),imag_part(m,n,k))
-        enddo; enddo; enddo
-      endif
+       enddo; enddo; enddo
+      endif 
+      if( trim(tr_name) .eq. 'ozone_tracer' ) call atmos_ozone_tracer_init(lonb, latb, is, js)
     enddo ! loop over tracers
   enddo ! loop over time levels
   call read_data(trim(file), 'vorg', vorg, grid_domain)
@@ -564,15 +602,35 @@ else
           vert_coord_option, vert_difference_option, scale_heights, surf_res, p_press, p_sigma, &
           exponent, ocean_topog_smoothing, pk, bk,                                              &
           vors(:,:,:,1), divs(:,:,:,1), ts(:,:,:,1), ln_ps(:,:,1), ug(:,:,:,1), vg(:,:,:,1),    &
-          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask,specify_initial_conditions, lonb, latb, initial_file, Time, init_conds)
+          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask,specify_initial_conditions, random_perturbation, &
+          lonb, latb, initial_file, Time, init_conds)
+
   else
      call spectral_init_cond(reference_sea_level_press, triang_trunc, use_virtual_temperature, topography_option,  &
           vert_coord_option, vert_difference_option, scale_heights, surf_res, p_press, p_sigma, &
           exponent, ocean_topog_smoothing, pk, bk,                                              &
           vors(:,:,:,1), divs(:,:,:,1), ts(:,:,:,1), ln_ps(:,:,1), ug(:,:,:,1), vg(:,:,:,1),    &
-          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions)
+          tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions, random_perturbation)
   endif
-   
+
+  !mj random perturbation for ensembles
+!  if ( random_perturbation .ne. 0.0 ) then
+!     if(mpp_pe() .eq. mpp_root_pe()) write(*,'(a)') ' THERE: Adding random temperature perturbation.'
+!     !allocate(rtmp(size(ts,1),size(ts,2),size(ts,3)))
+!     call mpp_get_layout( grid_domain, grid_layout )
+!     allocate(tf(size(ts,1),size(tg,2),size(tg,3),grid_layout(2)))
+!     !rtmp = 0.0
+!     !call RANDOM_SEED()
+!     !call RANDOM_NUMBER(rtmp(1,:,:))
+!     call trans_spherical_to_fourier(ts(:,:,:,1),tf)
+!     !print*,size(ts,1),size(tg,2),size(tg,3),grid_layout(2)
+!     !print*,shape(tf)
+!     if(mpp_pe() .eq. mpp_root_pe()) tf(5:8,:,25:35,:) = tf(5:8,:,25:35,:) + cmplx(random_perturbation,0)
+!     !if(mpp_pe() .eq. mpp_root_pe()) print*,tf(:,1,1,1)
+!     call trans_fourier_to_spherical(tf,ts(:,:,:,1))
+!     !ts(1,:,:,1) = ts(1,:,:,1) + cmplx(random_perturbation,0)
+!     call trans_spherical_to_grid(ts(:,:,:,1),tg(:,:,:,1))
+!  endif
 
   vors (:,:,:,2) = vors (:,:,:,1)
   divs (:,:,:,2) = divs (:,:,:,1)
@@ -582,39 +640,66 @@ else
   vg   (:,:,:,2) = vg   (:,:,:,1)
   tg   (:,:,:,2) = tg   (:,:,:,1)
   psg  (:,:,  2) = psg  (:,:,  1)
+  !mj tracer init
+  ! Allocate space to put the initial condition information, temporarily.
+  allocate(lmptmp(size(ug,1),size(ug,2),size(ug,3)))
+  ! need to get the pressure at half levels for interpolation
+  allocate(p_full(size(ug,1), size(ug,2), size(ug,3)))
+  allocate(ln_p_full(size(ug,1), size(ug,2), size(ug,3)))
+  allocate(p_half(size(ug,1), size(ug,2), size(ug,3)+1))
+  allocate(ln_p_half(size(ug,1), size(ug,2), size(ug,3)+1))
+  ! use psg to compute p_half
+  call pressure_variables(p_half, ln_p_half, p_full, ln_p_full, psg(:,:,1))
   do ntr = 1,num_tracers
     if(trim(tracer_attributes(ntr)%name) == 'sphum') then
       if(specify_initial_conditions) then  
          !epg+ray: This loads in sphum from the file initial_conditions.nc
          !mj modified to use interpolator routines
-         ! Allocate space to put the initial condition information, temporarily.
-         allocate(lmptmp(size(ug,1),size(ug,2),size(ug,3)))
-         ! need to get the pressure at half levels for interpolation
-         allocate(p_full(size(ug,1), size(ug,2), size(ug,3)))
-         allocate(ln_p_full(size(ug,1), size(ug,2), size(ug,3)))
-         allocate(p_half(size(ug,1), size(ug,2), size(ug,3)+1))
-         allocate(ln_p_half(size(ug,1), size(ug,2), size(ug,3)+1))
-         ! use psg to compute p_half
-         call pressure_variables(p_half, ln_p_half, p_full, ln_p_full, psg(:,:,1))
+!         ! Allocate space to put the initial condition information, temporarily.
+!         allocate(lmptmp(size(ug,1),size(ug,2),size(ug,3)))
+!         ! need to get the pressure at half levels for interpolation
+!         allocate(p_full(size(ug,1), size(ug,2), size(ug,3)))
+!         allocate(ln_p_full(size(ug,1), size(ug,2), size(ug,3)))
+!         allocate(p_half(size(ug,1), size(ug,2), size(ug,3)+1))
+!         allocate(ln_p_half(size(ug,1), size(ug,2), size(ug,3)+1))
+!         ! use psg to compute p_half
+!         call pressure_variables(p_half, ln_p_half, p_full, ln_p_full, psg(:,:,1))
+!         call interpolator(init_conds, Time, p_half, lmptmp, 'sphum', is, js)
+!         grid_tracers(:,:,:,1,ntr) = lmptmp
+!         grid_tracers(:,:,:,2,ntr) = lmptmp
+!         deallocate(lmptmp,p_full,p_half,ln_p_full,ln_p_half)
+!         if(mpp_pe() == mpp_root_pe()) then
+!            print *,'tracer ', trim(tracer_attributes(ntr)%name), ' read in from initial_conditions.nc'
+!         endif
          call interpolator(init_conds, Time, p_half, lmptmp, 'sphum', is, js)
          grid_tracers(:,:,:,1,ntr) = lmptmp
          grid_tracers(:,:,:,2,ntr) = lmptmp
-         deallocate(lmptmp,p_full,p_half,ln_p_full,ln_p_half)
-         if(mpp_pe() == mpp_root_pe()) then
-            print *,'tracer ', trim(tracer_attributes(ntr)%name), ' read in from initial_conditions.nc'
-         endif
       else 
          grid_tracers(:,:,:,:,ntr) = initial_sphum
       endif
-    else if(trim(tracer_attributes(ntr)%name) == 'mix_rat') then
-      grid_tracers(:,:,:,:,ntr) = 0.
-    else
-      grid_tracers(:,:,:,:,ntr) = 0.
+   else if(trim(tracer_attributes(ntr)%name) == 'mix_rat') then
+       grid_tracers(:,:,:,:,ntr) = 0.
+    else if(trim(tracer_attributes(ntr)%name) .eq. 'ozone_tracer') then
+      call atmos_ozone_tracer_init(lonb, latb, is, js, p_half, Time, grid_tracers(:,:,:,1,ntr))
+      grid_tracers(:,:,:,2,ntr) = grid_tracers(:,:,:,1,ntr)
+      if(mpp_pe() == mpp_root_pe()) then
+         print *,'tracer ', trim(tracer_attributes(ntr)%name), ' initialized from file.'
+      endif
+   else
+      if ( query_tracer_init(MODEL_ATMOS,trim(tracer_attributes(ntr)%name)) ) then
+         call set_tracer_profile(MODEL_ATMOS, ntr, grid_tracers(:,:,:,1,ntr) )
+         grid_tracers(:,:,:,2,ntr) = grid_tracers(:,:,:,1,ntr)
+         call have_initialized_tracer(MODEL_ATMOS,trim(tracer_attributes(ntr)%name))
+      else
+         grid_tracers(:,:,:,:,ntr) = 0.
+      endif
     endif
     call trans_grid_to_spherical(grid_tracers(:,:,:,1,ntr), spec_tracers(:,:,:,1,ntr))
     spec_tracers(:,:,:,2,ntr) = spec_tracers(:,:,:,1,ntr)
   enddo
+  deallocate(lmptmp,p_full,p_half,ln_p_full,ln_p_half)
 endif
+!if ( allocated(rtmp) ) deallocate(rtmp)
 
 return
 end subroutine read_restart_or_do_coldstart
@@ -799,7 +884,8 @@ real, dimension(is:ie, js:je, num_levels             ) :: dt_ug_tmp, dt_vg_tmp, 
 real, dimension(is:ie, js:je, num_levels             ) :: dt_ug_damp, dt_vg_damp, dt_tg_damp
 real, dimension(is:ie, js:je, num_levels, num_tracers) :: dt_tracers_tmp
 
-integer :: j, k, time_level, seconds, days, nsphum
+integer :: j, k, time_level, nsphum
+integer(8):: seconds, days 
 real    :: delta_t, temperature_correction
 real, dimension(num_tracers) :: dt_hadv, dt_vadv
 !mj error message
@@ -963,7 +1049,7 @@ previous = current
 current  = future
 
 call get_time(Time, seconds, days)
-seconds = seconds + step_number*int(dt_real/2)
+seconds = seconds + INT(step_number*int(dt_real/2),8)
 Time_diag = set_time(seconds, days)
 call every_step_diagnostics( &
      Time_diag, psg(:,:,current), ug(:,:,:,current), vg(:,:,:,current), tg(:,:,:,current), grid_tracers(:,:,:,current,:), &
@@ -1616,7 +1702,8 @@ real, dimension(is:ie, js:je, num_levels)   :: ln_p_full, p_full, z_full, work
 real, dimension(is:ie, js:je, num_levels+1) :: ln_p_half, p_half, z_half
 real, dimension(is:ie, js:je)               :: t_low, slp
 logical :: used
-integer :: ntr, i, j, k, seconds, days
+integer :: ntr, i, j, k
+integer(8) :: seconds, days
 character(len=8) :: err_msg_1, err_msg_2
 
 if(id_ps  > 0)    used = send_data(id_ps,  p_surf, Time)
@@ -1704,7 +1791,8 @@ type(time_type), intent(in) :: Time
 real, intent(in), dimension(is:ie, js:je)                          :: p_surf
 real, intent(in), dimension(is:ie, js:je, num_levels)              :: u_grid, v_grid, t_grid, wg_full
 real, intent(in), dimension(is:ie, js:je, num_levels, num_tracers) :: tr_grid
-integer :: year, month, days, hours, minutes, seconds
+integer(8) :: year, month, hours, minutes
+integer(8) :: seconds, days
 character(len=4), dimension(12) :: month_name
 
 month_name=(/' Jan',' Feb',' Mar',' Apr',' May',' Jun',' Jul',' Aug',' Sep',' Oct',' Nov',' Dec'/)

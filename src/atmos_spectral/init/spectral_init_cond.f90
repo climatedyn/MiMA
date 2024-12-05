@@ -12,7 +12,7 @@ use         constants_mod, only: grav, pi
 use   vert_coordinate_mod, only: compute_vert_coord
 
 use        transforms_mod, only: get_grid_boundaries, get_deg_lon, get_deg_lat, trans_grid_to_spherical, &
-                                 trans_spherical_to_grid, get_grid_domain, get_spec_domain 
+                                 trans_spherical_to_grid, get_grid_domain, get_spec_domain
 use           spec_mpp_mod,only: grid_domain, spectral_domain
 
 use  press_and_geopot_mod, only: press_and_geopot_init, pressure_variables
@@ -49,7 +49,7 @@ Contains
 subroutine spectral_init_cond(reference_sea_level_press, triang_trunc, use_virtual_temperature, topography_option, &
                               vert_coord_option, vert_difference_option, scale_heights, surf_res,    &
                               p_press, p_sigma, exponent, ocean_topog_smoothing, pk, bk, vors, divs, &
-                              ts, ln_ps, ug, vg, tg, psg, vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions, &
+                              ts, ln_ps, ug, vg, tg, psg, vorg, divg, surf_geopotential, ocean_mask, specify_initial_conditions, random_perturbation, &
                               lonb, latb, initial_file, Time, init_conds) !mj initial conditions
 
 real,    intent(in) :: reference_sea_level_press
@@ -65,12 +65,15 @@ real,    intent(out), dimension(:,:,:) :: vorg, divg
 real,    intent(out), dimension(:,:  ) :: surf_geopotential
 logical, optional, intent(in), dimension(:,:) :: ocean_mask
 logical, intent(in) :: specify_initial_conditions   !epg+ray
+real,    intent(in) :: random_perturbation                ! mj initial conditions
+
 real,    intent(in), dimension(:), optional :: lonb, latb ! mj initial conditions
 character(len=*), intent(in), optional      :: initial_file ! mj initial conditions
 type(time_type), intent(in), optional       :: Time
 type(interpolate_type),intent(out),optional :: init_conds
 
-! epg+ray: choice_of_init is used by spectral_initialize_fields to actually set up initial conditions 
+
+! epg+ray: choice_of_init is used by spectral_initialize_fields to actually set up initial conditions
 integer :: choice_of_init = 2
 integer :: unit, ierr, io
 
@@ -98,12 +101,12 @@ call press_and_geopot_init(pk, bk, use_virtual_temperature, vert_difference_opti
 
 if (choice_of_init .eq. 3) then
    call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
-        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, lonb, latb, initial_file, Time, init_conds)
+        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, random_perturbation, &
+        lonb, latb, initial_file, Time, init_conds)
 else
    call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
-        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg)
+        surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, random_perturbation)
 endif
-   
 
 call check_vert_coord(size(ug,3), psg)
 
@@ -157,7 +160,7 @@ if(trim(topography_option) == 'flat') then
 
 else if(trim(topography_option) == 'input') then
    if(file_exist('INPUT/topography.data.nc')) then
-     call mpp_get_global_domain(grid_domain, xsize=global_num_lon, ysize=global_num_lat) 
+     call mpp_get_global_domain(grid_domain, xsize=global_num_lon, ysize=global_num_lat)
      call field_size('INPUT/topography.data.nc', 'zsurf', siz)
      if ( siz(1) == global_num_lon .or. siz(2) == global_num_lat ) then
        call read_data('INPUT/topography.data.nc', 'zsurf', surf_height, grid_domain)
@@ -196,7 +199,7 @@ else if(trim(topography_option) == 'interpolated') then
    surf_geopotential = grav*surf_height
 
    if(ocean_topog_smoothing == 0.) then
-!    Spectrally truncate the realistic topography 
+!    Spectrally truncate the realistic topography
      call get_spec_domain(ms, me, ns, ne)
      allocate(spec_tmp(ms:me, ns:ne))
      call trans_grid_to_spherical(surf_geopotential,spec_tmp)
@@ -232,7 +235,7 @@ else if(trim(topography_option) == 'gaussian') then
    call get_deg_lat(deg_lat)
    call gaussian_topog_init(deg_lon*pi/180, deg_lat*pi/180, surf_height)
    surf_geopotential = grav*surf_height
-else 
+else
    call error_mesg('get_topography','"'//trim(topography_option)//'" is an invalid value for topography_option.', FATAL)
 endif
 

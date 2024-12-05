@@ -28,8 +28,8 @@
 !   for radiation that are not within astro.f90
 !
 !   external modules
-        use parkind, only         : im => kind_im, rb => kind_rb
-        use interpolator_mod, only: interpolate_type
+        use parkind,            only : im => kind_im, rb => kind_rb
+        use interpolator_mod,   only : interpolate_type
 !
 !  rrtm_radiation variables
 !
@@ -86,6 +86,12 @@
         real(kind=rb),allocatable,dimension(:,:,:) :: tdt_sw_rad,tdt_lw_rad ! SW, LW radiation heating rates,
                                                                             ! diagnostics only [K/s]
                                                                             ! dimension (lon x lat x pfull)
+        real(kind=rb),allocatable,dimension(:,:,:) :: dflux_sw_rad,dflux_lw_rad ! SW, LW downward fluxes,
+                                                                            ! diagnostics only [W/m2]
+                                                                            ! dimension (lon x lat x pfull)
+        real(kind=rb),allocatable,dimension(:,:,:) :: uflux_sw_rad,uflux_lw_rad ! SW, LW upward fluxes,
+                                                                            ! diagnostics only [W/m2]
+                                                                            ! dimension (lon x lat x pfull)
         real(kind=rb),allocatable,dimension(:,:,:) :: t_half                ! temperature at half levels [K]
                                                                             ! dimension (lon x lat x phalf)
         real(kind=rb),allocatable,dimension(:,:)   :: rrtm_precip           ! total time of precipitation
@@ -114,13 +120,16 @@
         logical            :: do_read_radiation=.false.       ! read SW and LW radiation in the atmosphere from
                                                               !  external file? Surface fluxes are still computed
         character(len=256) :: radiation_file='radiation'      !  file name to read radiation
+        character(len=256) :: radiation_name='radiation'      !  variable name inside the file
         real(kind=rb)      :: rad_missing_value=-1.e19        !   missing value in input files:
                                                               !    if <0, replace everything below this value with 0
                                                               !    if >0, replace everything above this value with 0
         logical            :: do_read_sw_flux=.false.         ! read SW surface fluxes from external file?
         character(len=256) :: sw_flux_file='sw_flux'          !  file name to read fluxes
+        character(len=256) :: sw_flux_name='sw_flux'          !  variable name inside the file
         logical            :: do_read_lw_flux=.false.         ! read LW surface fluxes from external file?
         character(len=256) :: lw_flux_file='lw_flux'          !  file name to read fluxes
+        character(len=256) :: lw_flux_name='lw_flux'          !  variable name inside the file
         logical            :: do_read_ozone=.false.           ! read ozone from an external file?
                                                               !  this is the only way to get ozone into the model
         character(len=256) :: ozone_file='ozone'              !  file name of ozone file to read
@@ -128,6 +137,7 @@
                                                               !     to ozone_file if 'none'
         real(kind=rb)      :: scale_ozone = 1.0               ! scale the ozone values in the file by this factor
         real(kind=rb)      :: o3_val = 0.0                    ! if do_read_ozone = .false., give ozone this constant value
+        logical            :: do_use_ozone_tracer = .false.   ! use ozone tracer instead
         logical            :: do_read_h2o=.false.             ! read water vapor from an external file?
         character(len=256) :: h2o_file='h2o'                  !  file name of h2o file to read
         character(len=256) :: h2o_name='none'                   !  variable name in h2o file. defaults
@@ -149,7 +159,7 @@
         real(kind=rb)      :: co2ppmv=300.                    ! CO2 ppmv concentration
         logical            :: do_fixed_water = .false.        ! feed fixed value for water vapor to RRTM?
         real(kind=rb)      :: fixed_water = 2.e-06            ! if so, what value? [kg/kg]
-        real(kind=rb)      :: fixed_water_pres = 100.e02      ! if so, above which pressure level? [hPa]
+        real(kind=rb)      :: fixed_water_pres = 100.e02      ! if so, above which pressure level? [Pa]
         real(kind=rb)      :: fixed_water_lat  = 90.          ! if so, equatorward of which latitude? [deg]
         logical            :: do_zm_tracers=.false.           ! Feed only the zonal mean of tracers to radiation
 
@@ -181,7 +191,7 @@
 !
 !-------------------- diagnostics fields -------------------------------
 
-        integer :: id_tdt_rad,id_tdt_sw,id_tdt_lw,id_coszen,id_flux_sw,id_flux_lw,id_albedo,id_ozone,id_thalf
+        integer :: id_tdt_rad,id_tdt_sw,id_tdt_lw,id_dflux_sw,id_dflux_lw,id_uflux_sw,id_uflux_lw,id_coszen,id_flux_sw,id_flux_lw,id_albedo,id_ozone,id_thalf
         integer :: id_olr,id_isr
         character(len=14), parameter :: mod_name = 'rrtm_radiation'
         real :: missing_value = -999.
@@ -189,10 +199,13 @@
 !---------------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------------
 
-        namelist/rrtm_radiation_nml/ include_secondary_gases, do_read_ozone, ozone_file, ozone_name, scale_ozone, o3_val, &
-             &do_read_h2o, h2o_file, h2o_name, ch4_val, n2o_val, o2_val, cfc11_val, cfc12_val, cfc22_val, ccl4_val, &
-             &do_read_radiation, radiation_file, rad_missing_value, &
-             &do_read_sw_flux, sw_flux_file, do_read_lw_flux, lw_flux_file,&
+
+        namelist/rrtm_radiation_nml/ include_secondary_gases, do_read_ozone, &
+             &ozone_file, ozone_name, scale_ozone, o3_val, do_use_ozone_tracer, &
+             &do_read_h2o, h2o_file, h2o_name, ch4_val, n2o_val, o2_val, &
+             &cfc11_val, cfc12_val, cfc22_val, ccl4_val, &
+             &do_read_radiation, radiation_file, radiation_name, rad_missing_value, &
+             &do_read_sw_flux, sw_flux_file, sw_flux_name, do_read_lw_flux, lw_flux_file, lw_flux_name,&
              &h2o_lower_limit,temp_lower_limit,temp_upper_limit,co2ppmv, &
              &do_fixed_water,fixed_water,fixed_water_pres,fixed_water_lat, &
              &slowdown_rad, &
@@ -225,8 +238,8 @@
           use fms_mod, only:          open_namelist_file, check_nml_error,  &
                                       &mpp_pe, mpp_root_pe, close_file, &
                                       &write_version_number, stdlog, &
-                                      &error_mesg, NOTE, WARNING
-          use time_manager_mod, only: time_type
+                                      &error_mesg, NOTE, WARNING, FATAL
+          use time_manager_mod, only: time_type, print_time
 ! Local variables
           implicit none
 
@@ -269,6 +282,22 @@
                register_diag_field ( mod_name, 'tdt_lw', axes(1:3), Time, &
                  'Temperature tendency due to LW radiation', &
                  'K/s', missing_value=missing_value               )
+          id_dflux_sw= &
+               register_diag_field ( mod_name, 'dflux_sw', axes(1:3), Time, &
+                 'SW downward flux', &
+                 'W/m2', missing_value=missing_value               )
+          id_dflux_lw= &
+               register_diag_field ( mod_name, 'dflux_lw', axes(1:3), Time, &
+                 'LW downward flux', &
+                 'W/m2', missing_value=missing_value               )
+          id_uflux_sw= &
+               register_diag_field ( mod_name, 'uflux_sw', axes(1:3), Time, &
+                 'SW upward flux', &
+                 'W/m2', missing_value=missing_value               )
+          id_uflux_lw= &
+               register_diag_field ( mod_name, 'uflux_lw', axes(1:3), Time, &
+                 'LW upward flux', &
+                 'W/m2', missing_value=missing_value               )
           id_coszen  = &
                register_diag_field ( mod_name, 'coszen', axes(1:2), Time, &
                  'cosine of zenith angle', &
@@ -328,6 +357,10 @@
                   'SETTING DO_PRECIP_ALBEDO TO FALSE AS DO_READ_RADIATION AND DO_READ_?W_FLUX ARE .TRUE.', NOTE)
              do_precip_albedo = .false.
           endif
+          if ( do_read_ozone .and. do_use_ozone_tracer ) then
+             call error_mesg('rrtm_radiation_init', &
+                  'CANNOT HAVE TO_READ_OZONE AND DO_USE_OZONE_TRACER AT THE SAME TIME.',FATAL)
+          endif
 
 !------------ set some constants and parameters -------
 
@@ -377,7 +410,10 @@
           endif !run RRTM?
 
           if(do_read_radiation)then
-             call interpolator_init (rad_interp, trim(radiation_file)//'.nc', lonb, latb, data_out_of_bounds=(/CONSTANT/))
+             if ( solday .gt. 0 ) then
+                solday = -1
+             endif
+             call interpolator_init (rad_interp, trim(radiation_file)//'.nc', lonb, latb, data_out_of_bounds=(/ZERO/))
           endif
 
           if(do_read_sw_flux)then
@@ -389,11 +425,11 @@
           endif
 
           if(do_read_ozone)then
-             call interpolator_init (o3_interp, trim(ozone_file)//'.nc', lonb, latb, data_out_of_bounds=(/ZERO/))
+             call interpolator_init (o3_interp, trim(ozone_file)//'.nc', lonb, latb, data_out_of_bounds=(/CONSTANT/))
           endif
 
           if(do_read_h2o)then
-             call interpolator_init (h2o_interp, trim(h2o_file)//'.nc', lonb, latb, data_out_of_bounds=(/ZERO/))
+             call interpolator_init (h2o_interp, trim(h2o_file)//'.nc', lonb, latb, data_out_of_bounds=(/CONSTANT/))
           endif
 
           if(store_intermediate_rad .or. id_flux_sw > 0) &
@@ -405,6 +441,10 @@
                allocate(tdt_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
           if(id_tdt_sw .gt. 0) allocate(tdt_sw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
           if(id_tdt_lw .gt. 0) allocate(tdt_lw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
+          if(id_dflux_sw .gt. 0) allocate(dflux_sw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
+          if(id_dflux_lw .gt. 0) allocate(dflux_lw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
+          if(id_uflux_sw .gt. 0) allocate(uflux_sw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
+          if(id_uflux_lw .gt. 0) allocate(uflux_lw_rad(size(lonb,1)-1,size(latb,1)-1,nlay))
           if(id_isr .gt. 0) allocate(isr(size(lonb,1)-1,size(latb,1)-1))
           if(id_olr .gt. 0) allocate(olr(size(lonb,1)-1,size(latb,1)-1))
 
@@ -466,7 +506,7 @@
         end subroutine interp_temp
 !*****************************************************************************************
 !*****************************************************************************************
-        subroutine run_rrtmg(is,js,Time,lat,lon,p_full,p_half,albedo,q,t,t_surf_rad,tdt,coszen,flux_sw,flux_lw)
+        subroutine run_rrtmg(is,js,Time,lat,lon,p_full,p_half,albedo,q,t,t_surf_rad,tdt,coszen,flux_sw,flux_lw,r)
 !
 ! Driver for RRTMG radiation scheme.
 ! Prepares all inputs, calls SW and LW radiation schemes,
@@ -480,8 +520,10 @@
           use rrtm_astro, only:      compute_zenith,use_dyofyr,solr_cnst,&
                                      solrad,solday,equinox_day
           use rrtm_vars
-          use time_manager_mod,only: time_type,get_time,set_time
+          use time_manager_mod,only: time_type,get_time,set_time,print_time
           use interpolator_mod,only: interpolator
+          use tracer_manager_mod,only: get_tracer_index
+          use field_manager_mod,only: MODEL_ATMOS
 !---------------------------------------------------------------------------------------------------------------
 ! In/Out variables
           implicit none
@@ -489,35 +531,39 @@
           integer, intent(in)                               :: is, js          ! index range for each CPU
           type(time_type),intent(in)                        :: Time            ! global time in calendar
           real(kind=rb),dimension(:,:,:),intent(in)         :: p_full,p_half   ! pressure, full and half levels
-                                                                               ! dimension (lat x lon x p*)
+                                                                               ! dimension (lon x lat x p*)
           real(kind=rb),dimension(:,:,:),intent(in)         :: q               ! water vapor mixing ratio [g/g]
-                                                                               ! dimension (lat x lon x pfull)
+                                                                               ! dimension (lon x lat x pfull)
           real(kind=rb),dimension(:,:,:),intent(in)         :: t               ! temperature [K]
-                                                                               ! dimension (lat x lon x pfull)
+                                                                               ! dimension (lon x lat x pfull)
           real(kind=rb),dimension(:,:),intent(in)           :: lat,lon         ! latitude, longitude
-                                                                               ! dimension (lat x lon)
+                                                                               ! dimension (lon x lat)
           real(kind=rb),dimension(:,:),intent(in)           :: albedo          ! surface albedo
-                                                                               ! dimension (lat x lon)
+                                                                               ! dimension (lon x lat)
           real(kind=rb),dimension(:,:),intent(in)           :: t_surf_rad      ! surface temperature [K]
-                                                                               ! dimension (lat x lon)
+                                                                               ! dimension (lon x lat)
           real(kind=rb),dimension(:,:,:),intent(inout)      :: tdt             ! heating rate [K/s]
-                                                                               ! dimension (lat x lon x pfull)
+                                                                               ! dimension (lon x lat x pfull)
           real(kind=rb),dimension(:,:),intent(out)          :: coszen          ! cosine of zenith angle
-                                                                               ! dimension (lat x lon)
+                                                                               ! dimension (lon x lat)
           real(kind=rb),dimension(:,:),intent(out),optional :: flux_sw,flux_lw ! surface fluxes [W/m2]
-                                                                               ! dimension (lat x lon)
+                                                                               ! dimension (lon x lat)
                                                                                ! need to have both or none!
+          real(kind=rb),dimension(:,:,:,:),intent(in)       :: r               ! tracers
+                                                                               ! dimension (lon x lat x pfull x ntracers)
 !---------------------------------------------------------------------------------------------------------------
 ! Local variables
-          integer k,j,i,ij,j1,i1,ij1,kend,dyofyr,seconds,days
-          integer si,sj,sk,locmin(3)
+          integer k,j,i,ij,j1,i1,ij1,kend,dyofyr
+          integer(8) seconds,days
+          integer si,sj,sk,locmin(3),nozone
           real(kind=rb),dimension(size(q,1),size(q,2),size(q,3)) :: o3f
           real(kind=rb),dimension(ncols_rrt,nlay_rrt) :: pfull,tfull&
                , hr,hrc, swhr, swhrc
           real(kind=rb),dimension(size(tdt,1),size(tdt,2),size(tdt,3)) :: tdt_rrtm
+          real(kind=rb),dimension(size(tdt,1),size(tdt,2),size(tdt,3)) :: dflux_sw_rrtm,dflux_lw_rrtm,uflux_sw_rrtm,uflux_lw_rrtm
           real(kind=rb),dimension(ncols_rrt,nlay_rrt+1) :: uflx, dflx, uflxc, dflxc&
                ,swuflx, swdflx, swuflxc, swdflxc
-          real(kind=rb),dimension(size(q,1)/lonstep,size(q,2),size(q,3)  ) :: swijk,lwijk
+          real(kind=rb),dimension(size(q,1)/lonstep,size(q,2),size(q,3)  ) :: swijk,lwijk,swdflxijk,swuflxijk,lwdflxijk,lwuflxijk
           real(kind=rb),dimension(size(q,1)/lonstep,size(q,2)) :: swflxijk,lwflxijk,olrijk,isrijk
           real(kind=rb),dimension(ncols_rrt,nlay_rrt+1):: phalf,thalf
           real(kind=rb),dimension(ncols_rrt)   :: tsrf,cosz_rr,albedo_rr
@@ -541,6 +587,10 @@
           else
              if(store_intermediate_rad)then
                 tdt_rrtm = tdt_rad
+                !dflux_sw_rrtm = dflux_sw_rad
+                !dflux_lw_rrtm = dflux_lw_rad
+                !uflux_sw_rrtm = uflux_sw_rad
+                !uflux_lw_rrtm = uflux_lw_rad
                 flux_sw = sw_flux
                 flux_lw = lw_flux
              else
@@ -554,10 +604,10 @@
           endif
 !make sure we run perpetual when solday > 0)
           if(solday > 0)then
-             Time_loc = set_time(seconds,solday)
+             Time_loc = set_time(seconds,INT(solday,8))
           elseif(slowdown_rad .ne. 1.0)then
              seconds = days*86400 + seconds
-             Time_loc = set_time(int(seconds*slowdown_rad))
+             Time_loc = set_time(int(seconds*slowdown_rad,8))
           else
              Time_loc = Time
           endif
@@ -571,9 +621,9 @@
           end if
 ! input files: only deal with case where we don't need to call radiation at all
           if(do_read_radiation .and. do_read_sw_flux .and. do_read_lw_flux) then
-             call interpolator( rad_interp, Time_loc, p_half, tdt_rrtm, trim(radiation_file))
-             call interpolator( fsw_interp, Time_loc, flux_sw, trim(sw_flux_file))
-             call interpolator( flw_interp, Time_loc, flux_lw, trim(lw_flux_file))
+             call interpolator( rad_interp, Time_loc, p_half, tdt_rrtm, trim(radiation_name))
+             call interpolator( fsw_interp, Time_loc, flux_sw, trim(sw_flux_name))
+             call interpolator( flw_interp, Time_loc, flux_lw, trim(lw_flux_name))
              ! there might be missing values due to surface topography, which would
              !  put in weird values. This is still work in progress, and cannot be
              !  used safely!
@@ -588,6 +638,10 @@
              !endif
              tdt = tdt + tdt_rrtm
              tdt_rad = tdt_rrtm
+             !dflux_sw_rad = dflux_sw_rrtm
+             !dflux_lw_rad = dflux_lw_rrtm
+             !uflux_sw_rad = uflux_sw_rrtm
+             !uflux_lw_rad = uflux_lw_rrtm
              sw_flux = flux_sw
              lw_flux = flux_lw
              call write_diag_rrtm(Time_loc,is,js)
@@ -603,8 +657,14 @@
           if(.not. use_dyofyr) dyofyr=0 !use solrad instead of day of year
 
           !get ozone
-          if(do_read_ozone)then
-             call interpolator( o3_interp, Time_loc, p_half, o3f, ozone_name )
+
+          if(do_read_ozone .or. do_use_ozone_tracer)then
+             if ( do_read_ozone ) then
+                call interpolator( o3_interp, Time_loc, p_half, o3f, ozone_name )
+             else if ( do_use_ozone_tracer ) then
+                nozone = get_tracer_index(MODEL_ATMOS,'ozone_tracer')
+                o3f = r(:,:,:,nozone)
+             endif
              o3f = o3f*scale_ozone
              !due to interpolation, some values might be negative
              o3f = max(0.0,o3f)
@@ -718,6 +778,9 @@
           endif
 
           swijk   = reshape(swhr(:,sk:1:-1),(/ si/lonstep,sj,sk /))*daypersec
+          ! interpolate phalf fluxes onto pfull
+          swdflxijk   = reshape(0.5*(swdflx(:,sk+1:2:-1)+swdflx(:,sk:1:-1)),(/ si/lonstep,sj,sk /))
+          swuflxijk   = reshape(0.5*(swuflx(:,sk+1:2:-1)+swuflx(:,sk:1:-1)),(/ si/lonstep,sj,sk /))
           isrijk  = reshape(swdflx(:,sk+1)-swuflx(:,sk+1),(/ si/lonstep,sj /))
 
           hr = 0.
@@ -753,13 +816,17 @@
                   uflx      , dflx    , hr      , uflxc, dflxc  , hrc)
           endif
 
-          lwijk   = reshape(hr(:,sk:1:-1),(/ si/lonstep,sj,sk /))*daypersec
-          olrijk  = reshape(uflx(:,sk+1),(/ si/lonstep,sj /))
+          lwijk       = reshape(hr(:,sk:1:-1),(/ si/lonstep,sj,sk /))*daypersec
+          ! interpolate phalf fluxes onto pfull
+          lwdflxijk   = reshape(0.5*(dflx(:,sk+1:2:-1)+dflx(:,sk:1:-1)),(/ si/lonstep,sj,sk /))
+          lwuflxijk   = reshape(0.5*(uflx(:,sk+1:2:-1)+uflx(:,sk:1:-1)),(/ si/lonstep,sj,sk /))
+          ! dflx at TOA is zero, but it doesn't hurt to include it to compute OLR
+          olrijk      = reshape(uflx(:,sk+1) - dflx(:,sk+1),(/ si/lonstep,sj /))
 
 !---------------------------------------------------------------------------------------------------------------
           ! get radiation
           if( do_read_radiation ) then
-             call interpolator( rad_interp, Time_loc, p_half, tdt_rrtm, trim(radiation_file))
+             call interpolator( rad_interp, Time_loc, p_half, tdt_rrtm, trim(radiation_name))
           else
 ! interpolate back onto GCM grid (latitude is kept the same due to parallelisation)
              dlon=1./lonstep
@@ -779,6 +846,10 @@
                    endif
                    if(id_tdt_sw .gt. 0)tdt_sw_rad(ij1,:,:)=di*swijk(i1,:,:)+(1.-di)*swijk(i,:,:)
                    if(id_tdt_lw .gt. 0)tdt_lw_rad(ij1,:,:)=di*lwijk(i1,:,:)+(1.-di)*lwijk(i,:,:)
+                   if(id_dflux_sw .gt. 0)dflux_sw_rad(ij1,:,:)=di*swdflxijk(i1,:,:)+(1.-di)*swdflxijk(i,:,:)
+                   if(id_dflux_lw .gt. 0)dflux_lw_rad(ij1,:,:)=di*lwdflxijk(i1,:,:)+(1.-di)*lwdflxijk(i,:,:)
+                   if(id_uflux_sw .gt. 0)uflux_sw_rad(ij1,:,:)=di*swuflxijk(i1,:,:)+(1.-di)*swuflxijk(i,:,:)
+                   if(id_uflux_lw .gt. 0)uflux_lw_rad(ij1,:,:)=di*lwuflxijk(i1,:,:)+(1.-di)*lwuflxijk(i,:,:)
                    if(id_olr    .gt. 0)olr(ij1,:)         =di*olrijk(i1,:) +(1.-di)*olrijk(i,:)
                    if(id_isr    .gt. 0)isr(ij1,:)         =di*isrijk(i1,:) +(1.-di)*isrijk(i,:)
                 enddo
@@ -787,6 +858,10 @@
           tdt = tdt + tdt_rrtm
           ! store radiation between radiation time steps
           if(store_intermediate_rad .or. id_tdt_rad > 0) tdt_rad = tdt_rrtm
+          !if(store_intermediate_rad .or. id_dflux_sw > 0) dflux_sw_rad = dflux_sw_rrtm
+          !if(store_intermediate_rad .or. id_dflux_lw > 0) dflux_lw_rad = dflux_lw_rrtm
+          !if(store_intermediate_rad .or. id_uflux_sw > 0) uflux_sw_rad = uflux_sw_rrtm
+          !if(store_intermediate_rad .or. id_uflux_lw > 0) uflux_lw_rad = uflux_lw_rrtm
 
 
           ! get the surface fluxes
@@ -812,10 +887,10 @@
                 enddo
              enddo
              if ( do_read_sw_flux )then
-                call interpolator( fsw_interp, Time_loc, flux_sw, trim(sw_flux_file))
+                call interpolator( fsw_interp, Time_loc, flux_sw, trim(sw_flux_name))
              endif
              if ( do_read_lw_flux )then
-                call interpolator( flw_interp, Time_loc, flux_lw, trim(lw_flux_file))
+                call interpolator( flw_interp, Time_loc, flux_lw, trim(lw_flux_name))
              endif
 
              ! store between radiation steps
@@ -846,7 +921,8 @@
 !
 ! Modules
           use rrtm_vars,only:         sw_flux,lw_flux,zencos,tdt_rad,tdt_sw_rad,tdt_lw_rad,&
-                                      &olr,isr,&
+                                      &olr,isr,dflux_sw_rad,dflux_lw_rad,uflux_sw_rad,uflux_lw_rad,&
+                                      &id_dflux_sw,id_dflux_lw,id_uflux_sw,id_uflux_lw,&
                                       &id_tdt_rad,id_tdt_sw,id_tdt_lw,id_coszen,&
                                       &id_flux_sw,id_flux_lw,id_albedo,id_ozone,&
                                       &id_thalf,id_isr,id_olr
@@ -872,6 +948,22 @@
 !------- temperature tendency due to LW radiation ---------
           if ( id_tdt_lw > 0 ) then
              used = send_data ( id_tdt_lw, tdt_lw_rad, Time, is, js, 1 )
+          endif
+!------- downward SW flux                         ---------
+          if ( id_dflux_sw > 0 ) then
+             used = send_data ( id_dflux_sw, dflux_sw_rad, Time, is, js, 1 )
+          endif
+!------- downward LW flux                         ---------
+          if ( id_dflux_lw > 0 ) then
+             used = send_data ( id_dflux_lw, dflux_lw_rad, Time, is, js, 1 )
+          endif
+!------- upward SW flux                           ---------
+          if ( id_uflux_sw > 0 ) then
+             used = send_data ( id_uflux_sw, uflux_sw_rad, Time, is, js, 1 )
+          endif
+!------- upward LW flux                           ---------
+          if ( id_uflux_lw > 0 ) then
+             used = send_data ( id_uflux_lw, uflux_lw_rad, Time, is, js, 1 )
           endif
 !------- cosine of zenith angle                ------------
           if ( id_coszen > 0 ) then

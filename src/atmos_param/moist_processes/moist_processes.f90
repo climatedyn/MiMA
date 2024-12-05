@@ -2443,6 +2443,8 @@ subroutine diag_field_init ( axes, Time )
   character(len=128) :: diaglname
   integer, dimension(3) :: half = (/1,2,4/)
   integer   :: n, nn
+  real, dimension(2) :: prange = (/ 0.0, 0.002 /)
+                        
 
 !------------ initializes diagnostic fields in this module -------------
 
@@ -2507,11 +2509,13 @@ end if  ! if ( do_bmmass )
 
    id_prec_conv = register_diag_field ( mod_name, &
      'prec_conv', axes(1:2), Time, &
-    'Precipitation rate',       'kg/m2/s' )
+     'Precipitation rate',       'kg/m2/s', &
+     range = prange )   !mj
 
    id_snow_conv = register_diag_field ( mod_name, &
      'snow_conv', axes(1:2), Time, &
-    'Frozen precip rate',       'kg/m2/s' )
+     'Frozen precip rate',       'kg/m2/s', &
+     range = prange )  !mj
 
    id_gust_conv = register_diag_field ( mod_name, &
      'gust_conv', axes(1:2), Time, &
@@ -2567,11 +2571,13 @@ if ( do_lsc ) then
 
    id_prec_ls = register_diag_field ( mod_name, &
      'prec_ls', axes(1:2), Time, &
-    'Precipitation rate from large-scale cond',     'kg/m2/s' )
+     'Precipitation rate from large-scale cond',     'kg/m2/s', &
+      range = prange )  !mj
 
    id_snow_ls = register_diag_field ( mod_name, &
      'snow_ls', axes(1:2), Time, &
-    'Frozen precip rate from large-scale cond',     'kg/m2/s' )
+     'Frozen precip rate from large-scale cond',     'kg/m2/s', &
+      range = prange )  !mj
 
    id_q_ls_col = register_diag_field ( mod_name, &
      'q_ls_col', axes(1:2), Time, &
@@ -2602,11 +2608,13 @@ if ( do_strat ) then
 
    id_prec_ls = register_diag_field ( mod_name, &
      'prec_ls', axes(1:2), Time, &
-    'Precipitation rate from strat cloud',          'kg/m2/s' )
+     'Precipitation rate from strat cloud',          'kg/m2/s', &
+      range = prange ) !mj
 
    id_snow_ls = register_diag_field ( mod_name, &
      'snow_ls', axes(1:2), Time, &
-    'Frozen precip rate from strat cloud',          'kg/m2/s' )
+     'Frozen precip rate from strat cloud',          'kg/m2/s', &
+     range = prange )  !mj
 
    id_q_ls_col = register_diag_field ( mod_name, &
      'q_ls_col', axes(1:2), Time, &
@@ -2655,7 +2663,8 @@ endif
 
    id_precip = register_diag_field ( mod_name, &
      'precip', axes(1:2), Time, &
-     'Total precipitation rate',                     'kg/m2/s' )
+     'Total precipitation rate',                     'kg/m2/s', &
+     range = prange )  !mj
 
    id_WVP = register_diag_field ( mod_name, &
      'WVP', axes(1:2), Time, &

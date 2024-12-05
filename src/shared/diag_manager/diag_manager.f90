@@ -121,13 +121,13 @@ integer             :: num_output_fields = 0
 integer, parameter  :: DIAG_OTHER = 0
 integer, parameter  :: DIAG_OCEAN = 1
 integer, parameter  :: DIAG_ALL   = 2
-integer, parameter  :: VERY_BIG_NUMBER = 100000
+integer, parameter  :: VERY_BIG_NUMBER = 1e+07
 real                :: EMPTY = 0.0
 integer             :: null_axis_id
 
 ! Global data for all files
 type (time_type)    :: base_time
-integer             :: base_year, base_month, base_day, base_hour, base_minute, base_second
+integer(8)          :: base_year, base_month, base_day, base_hour, base_minute, base_second
 character(len = 256):: global_descriptor
 character(len = 64) :: iospec = "              "
 
@@ -765,7 +765,6 @@ gstart_indx = -1; gend_indx=-1
 ! get axis data (lat, lon, depth) and indices
    start= output_fields(outnum)%output_grid%start
    end = output_fields(outnum)%output_grid%end
-
 do i = 1,size(axes(:))
    global_axis_size = get_axis_global_length(axes(i))
    output_fields(outnum)%output_grid%subaxes(i) = -1
@@ -776,8 +775,16 @@ do i = 1,size(axes(:))
            call error_mesg ('diag_manager, get subfield size', 'wrong order of axes, X should come first',FATAL)
       allocate(global_lon(global_axis_size))
       call get_diag_axis_data(axes(i),global_lon)
-      gstart_indx(i) = get_index(start(i),global_lon)
-      gend_indx(i) = get_index(end(i),global_lon)
+      if(start(i) .le. minval(global_lon)) then
+         gstart_indx(i) = get_index(start(i),global_lon)
+      else
+         gstart_indx(i) = 1
+      endif
+      if(end(i) .ge. maxval(global_lon)) then
+         gend_indx(i) = global_axis_size
+      else
+         gend_indx(i) = get_index(end(i),global_lon)
+      endif
       allocate(subaxis_x(gstart_indx(i):gend_indx(i)))
       subaxis_x=global_lon(gstart_indx(i):gend_indx(i))
    case ('Y')
@@ -785,8 +792,16 @@ do i = 1,size(axes(:))
            call error_mesg ('diag_manager, get subfield size', 'wrong order of axes, Y should come second',FATAL)
       allocate(global_lat(global_axis_size))
       call get_diag_axis_data(axes(i),global_lat)
-      gstart_indx(i) = get_index(start(i),global_lat)
-      gend_indx(i) = get_index(end(i),global_lat)
+      if(start(i) .le. minval(global_lat)) then
+         gstart_indx(i) = 1
+      else
+         gstart_indx(i) = get_index(start(i),global_lat)
+      endif
+      if(end(i) .ge. maxval(global_lat)) then
+         gend_indx(i) = global_axis_size
+      else
+         gend_indx(i) = get_index(end(i),global_lat)
+      endif
       allocate(subaxis_y(gstart_indx(i):gend_indx(i)))
       subaxis_y=global_lat(gstart_indx(i):gend_indx(i))
    case ('Z')
@@ -811,7 +826,7 @@ do i = 1,size(axes(:))
       endif
    case default
        call error_mesg ('diag_manager, get_subfield_size', 'Wrong axis_cart', FATAL)
-   end select
+    end select
 enddo
 do i = 1,size(axes(:))
    if(gstart_indx(i)== -1 .or. gend_indx(i)== -1) &
@@ -1779,6 +1794,7 @@ endif
 
 new_file_freq1 = VERY_BIG_NUMBER
 if(present(new_file_freq)) new_file_freq1 = new_file_freq
+
 if (get_calendar_type() == NO_CALENDAR) then
   new_file_freq_units1 = DIAG_DAYS
 else
@@ -2059,7 +2075,7 @@ integer            :: j, log_unit, name_len, nrecs, ierr, io_status
 integer, allocatable, dimension(:) :: pelist
 integer            :: new_file_freq_units, record_len, time_pos
 logical            :: new_file_type, start_time_present, init_verbose
-integer            :: yr, mo, dy, hr, mi, sc
+integer(8)         :: yr, mo, dy, hr, mi, sc
 type(time_type)    :: start_time
 
 namelist /diag_manager_nml/ append_pelist_name, mix_snapshot_average_fields, init_verbose,iospec, &
@@ -2114,7 +2130,7 @@ if (get_calendar_type() /= NO_CALENDAR) then
    amonth = month_name(base_month)
 else
 ! No calendar - ignore year and month
-   base_time = set_time(base_hour*3600+base_minute*60+base_second, base_day)
+   base_time = set_time(INT(base_hour*3600+base_minute*60+base_second,8), INT(base_day,8))
    base_year  = 0
    base_month = 0
    amonth = 'day'
@@ -2638,7 +2654,7 @@ function get_date_dif(t2, t1, units)
 real                        :: get_date_dif
 type(time_type), intent(in) :: t2, t1
 integer, intent(in)         :: units
-integer                     :: year, month, day, hour, minute, second, dif_seconds, dif_days
+integer(8)                  :: year, month, day, hour, minute, second, dif_seconds, dif_days
 type(time_type)             :: dif_time
 
 ! Compute time axis label value
@@ -2676,11 +2692,11 @@ function get_time_string(filename, current_time)
 type(time_type), intent(in)    :: current_time
 character(len=128), intent(in) :: filename
 character(len=128)             :: get_time_string
-integer                        :: yr1, mo1, dy1, hr1, mi1, sc1  ! get from current time
+integer(8)                     :: yr1, mo1, dy1, hr1, mi1, sc1  ! get from current time
 integer                        :: yr2, dy2, hr2, mi2            ! for computing next_level time unit
 integer                        :: yr1_s, mo1_s, dy1_s, hr1_s, mi1_s, sc1_s ! actual values to write string
 character(len=20)              :: yr, mo, dy, hr, mi, sc        ! string of current time (output)
-integer                        :: abs_sec, abs_day              ! component of current_time
+integer(8)                     :: abs_sec, abs_day              ! component of current_time
 integer                        :: days_per_month(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
 integer                        :: julian_day, i, position, len, first_percent
 character(len=10)              :: format
@@ -2919,7 +2935,7 @@ end function diag_time_inc
 !   </TEMPLATE>
 
  subroutine get_base_date (year, month, day, hour, minute, second)
-   integer, intent(out) :: year, month, day, hour, minute, second
+   integer(8), intent(out) :: year, month, day, hour, minute, second
 
    if (.not.module_is_initialized) call error_mesg (  &
                         'get_base_date in diag_manager_mod', &

@@ -579,7 +579,7 @@ real, dimension(:,:,:),  intent(out),  optional  :: diffm, difft
          call rrtm_radiation_init(axes,Time,id*jd,kd,lonb,latb)
       endif
       
-      if(do_local_heating) call local_heating_init(axes, Time)
+      if(do_local_heating) call local_heating_init(axes, Time, lonb, latb)
 
 !-----------------------------------------------------------------------
 !    initialize atmos_tracer_driver_mod.
@@ -1002,7 +1002,7 @@ real,  dimension(:,:,:), intent(out)  ,optional :: diffm, difft
       type(microphysics_type)                        :: Lsc_microphys, &
                                                         Meso_microphys,&
                                                         Cell_microphys
-      integer          ::    sec, day
+      integer(8)       ::    sec, day
       real             ::    dt, alpha, dt2
       logical          ::    need_aerosols, need_clouds, need_gases,   &
                              need_basic
@@ -1062,7 +1062,7 @@ real,  dimension(:,:,:), intent(out)  ,optional :: diffm, difft
 !---------------------------------------------------------------------
       if ( .not. module_is_initialized) then
         call error_mesg ('physics_driver_mod',  &
-                         'module has not been initialized', FATAL)
+                         'module not been initialized', FATAL)
       endif
 
 !---------------------------------------------------------------------
@@ -1287,13 +1287,13 @@ real,  dimension(:,:,:), intent(out)  ,optional :: diffm, difft
       if(do_rrtm_radiation) then
          !need t at half grid
          call interp_temp(z_full,z_half,t_surf_rad,t)
-         call run_rrtmg(is,js,Time,lat,lon,p_full,p_half,albedo,q,t,t_surf_rad,tdt,coszen,flux_sw,flux_lw)
+         call run_rrtmg(is,js,Time,lat,lon,p_full,p_half,albedo,q,t,t_surf_rad,tdt,coszen,flux_sw,flux_lw,r)
       endif
 !----------------------------------------------------------------------
 !    artificial local heating if required
 !----------------------------------------------------------------------
       if(do_local_heating) then
-        call local_heating(is,js,Time,lon,lat,p_full,tdt)
+        call local_heating(is,js,Time,lon,lat,p_full,p_half,tdt)
       endif
 
 !----------------------------------------------------------------------
@@ -1666,7 +1666,7 @@ integer,dimension(:,:), intent(in),   optional :: kbot
 
       real, dimension(size(u,1), size(u,2), size(u,3)) :: diff_cu_mo_loc
       real, dimension(size(u,1), size(u,2))            :: gust_cv
-      integer :: sec, day
+      integer(8) :: sec, day
       real    :: dt
    
 !---------------------------------------------------------------------

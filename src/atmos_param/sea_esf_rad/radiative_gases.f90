@@ -909,7 +909,7 @@ type(radiative_gases_type), intent(inout) :: Rad_gases
 !
       character(len=8)   :: gas_name  ! name associated with the 
                                       ! radiative gas
-      integer            :: yr, mo, dy, hr, mn, sc 
+      integer(8)         :: yr, mo, dy, hr, mn, sc 
                                       ! components of Rad_time
       type(time_type)    :: Gas_time
 
@@ -1532,9 +1532,12 @@ real, dimension(:), intent(in) :: gas_value
 !    convert the base_time to a time_type and store in Gas_time_list(1).
 !---------------------------------------------------------------------
         if (base_time(2) /= 0 .and. base_time(3) /= 0 ) then  
-          Gas_time_list(1) = set_date (base_time(1), base_time(2), &
-                                       base_time(3), base_time(4), &
-                                       base_time(5), base_time(6))  
+           Gas_time_list(1) = set_date (INT(base_time(1),8), &
+                                        INT(base_time(2),8), &
+                                        INT(base_time(3),8), &
+                                        INT(base_time(4),8), &
+                                        INT(base_time(5),8), &
+                                        INT(base_time(6),8))  
         else
           call error_mesg ('radiative_gases_mod', &
            'must supply valid date for '//trim(gas)//'_base_time when&
@@ -1614,12 +1617,12 @@ real, dimension(:), intent(in) :: gas_value
 !---------------------------------------------------------------------
 !    define time for which gas data is desired.
 !---------------------------------------------------------------------
-        Gas_entry  = set_date (gas_dataset_entry(1), &
-                               gas_dataset_entry(2), &
-                               gas_dataset_entry(3), &
-                               gas_dataset_entry(4), &
-                               gas_dataset_entry(5), &
-                               gas_dataset_entry(6))
+        Gas_entry  = set_date (INT(gas_dataset_entry(1),8), &
+                               INT(gas_dataset_entry(2),8), &
+                               INT(gas_dataset_entry(3),8), &
+                               INT(gas_dataset_entry(4),8), &
+                               INT(gas_dataset_entry(5),8), &
+                               INT(gas_dataset_entry(6),8))
         call error_mesg ( 'radiative_gases_mod', &
               'PROCESSING TIMESERIES FOR ' // trim(gas), NOTE)
         call print_date (Gas_entry , str='Data from timeseries &
@@ -3370,7 +3373,7 @@ real,                               intent(out)   :: rgas
       real       :: extra_seconds
       integer    :: inrad   ! unit number for i/o
       integer    :: i       ! do loop index
-      integer    :: year, diy, yr, mo, dy, hr, mn, sc
+      integer(8) :: year, diy, yr, mo, dy, hr, mn, sc
       integer    :: series_length
       integer    :: index1, index2
       real       :: percent_of_period
@@ -3436,11 +3439,11 @@ real,                               intent(out)   :: rgas
           endif
         endif
         do i=1,series_length
-          year = INT(input_time(i))
-          Year_t = set_date (year,1,1,0,0,0)
+          year = INT(input_time(i),8)
+          Year_t = set_date (year,INT(1,8),INT(1,8),INT(0,8),INT(0,8),INT(0,8))
           diy = days_in_year (Year_t)
           extra_seconds = (input_time(i) - year)*diy*86400. 
-          Extra_time=    set_time(NINT(extra_seconds), 0)
+          Extra_time=    set_time(NINT(extra_seconds,8), INT(0,8))
           Gas_time_list(i)    = Year_t + Extra_time
           call get_date (Gas_time_list(i), yr, mo, dy, hr, mn, sc)
           if (verbose > 3) then
@@ -3474,12 +3477,12 @@ real,                               intent(out)   :: rgas
 !    and determine the timeseries value that corresponds.
 !---------------------------------------------------------------------
           else
-            Gas_entry = set_date (gas_dataset_entry(1), &
-                                  gas_dataset_entry(2), &
-                                  gas_dataset_entry(3), &
-                                  gas_dataset_entry(4), &
-                                  gas_dataset_entry(5), &
-                                  gas_dataset_entry(6))     
+            Gas_entry = set_date (INT(gas_dataset_entry(1),8), &
+                                  INT(gas_dataset_entry(2),8), &
+                                  INT(gas_dataset_entry(3),8), &
+                                  INT(gas_dataset_entry(4),8), &
+                                  INT(gas_dataset_entry(5),8), &
+                                  INT(gas_dataset_entry(6),8))     
             call time_interp (Gas_entry, Gas_time_list,  &
                               percent_of_period, index1, index2)
             rgas = gas_value(index1) + percent_of_period*  &
@@ -3683,10 +3686,10 @@ logical,            intent(inout), optional  :: &
 !  local variables:
 
      type(time_type)    :: Gas_yrs   
-     integer            :: days, seconds
+     integer(8)            :: days, seconds
      real               :: years_of_gas, years_of_gas_till_next
-     integer            :: days2, seconds2
-     integer            :: days3, seconds3
+     integer(8)            :: days2, seconds2
+     integer (8)           :: days3, seconds3
      real               :: mean_days, calc_time
      character(len=16)  :: chvers7, chvers8, chvers9, chvers11
      integer            :: alarm, minutes_from_start
@@ -3695,8 +3698,8 @@ logical,            intent(inout), optional  :: &
      type(time_type)    :: Tf_offset, Tf_calc_intrvl 
      real               :: rseconds3
      integer            :: index1, index2
-     integer            :: yr, mo, dy, hr, mn, sc
-     integer            :: days7, seconds7
+     integer(8)         :: yr, mo, dy, hr, mn, sc
+     integer(8)         :: days7, seconds7
      type(time_type)    :: Tf_displ, First_of_month, Gas_tf_next, &
                            Time_left
 !---------------------------------------------------------------------
@@ -3958,7 +3961,7 @@ logical,            intent(inout), optional  :: &
               call get_date (Rad_time, yr, mo, dy, hr, mn, sc)
               Tf_displ =   &
                       set_time(NINT(gas_tf_time_displacement*60*60), 0)
-              First_of_month = set_date (yr, mo, 1, 0, 0, 0)
+              First_of_month = set_date (yr, mo, INT(1,8), INT(0,8), INT(0,8), INT(0,8))
               Gas_tf_next =  First_of_month + Tf_displ
               if (Gas_tf_next > Rad_time) then
                 Time_left = Gas_tf_next - Rad_time

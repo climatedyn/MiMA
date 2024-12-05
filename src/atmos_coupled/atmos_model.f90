@@ -337,7 +337,8 @@ type (atmos_data_type), intent(inout) :: Atmos
 type (time_type), intent(in) :: Time_init, Time, Time_step
 
   integer :: unit, ntrace, ntprog, ntdiag, ntfamily, i, j
-  integer :: mlon, mlat, nlon, nlat, sec, day, ipts, jpts, dt, dto
+  integer :: mlon, mlat, nlon, nlat, ipts, jpts, dt, dto
+  integer(8) :: sec, day
   real    :: r_ipts, r_jpts, r_dto
   character(len=80) :: control
   integer :: ierr, io, siz(4)
@@ -558,7 +559,8 @@ end subroutine atmos_model_init
 subroutine atmos_model_end (Atmos)
 
 type (atmos_data_type), intent(inout) :: Atmos
-integer :: unit, sec, day, dt
+integer :: unit, dt
+integer(8) :: sec, day
 character(len=64) :: fname = 'RESTART/atmos_coupled.res.nc'
 !-----------------------------------------------------------------------
 !---- termination routine for atmospheric model ----

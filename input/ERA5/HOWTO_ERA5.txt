@@ -1,0 +1,31 @@
+The main script here is `download_era5_input.py`, and it can be used to download and prepare ERA5 data for MiMA. The first two require a valid CDS Data account as well as a working cdsapi. It also requires `xarray`.
+
+# Downloading from ERA5
+
+To download ERA5 initial conditions for the atmosphere only, run
+```bash
+python download_era5_input.py -s YYYY-MM-DD
+```
+Or, for downloading multiple time steps,
+```bash
+python download_era5_input.py -s YYYY-MM-DD -e YYYY-MM-DD
+```
+
+To add initial conditions for ozone as well, run
+```bash
+python download_era5_input.py -s YYYY-MM-DD --o3
+```
+To save bandwidth and storage, download on coarser grid
+```bash
+python download_era5_input.py -s YYYY-MM-DD -g 2.5 2.5
+```
+
+If you want to average your data over time, either for a single initial condition or
+for a climatological forcing, add the `-a` flag
+```bash
+python download_era5_input.py -s YYYY-MM-DD -e YYYY-MM-DD -g 2.5 2.5 -a
+```
+
+One can also create ensembles with the `-E` flag, and either only download data with `-D` and only analyse downloaded
+data with `-A`.
+
