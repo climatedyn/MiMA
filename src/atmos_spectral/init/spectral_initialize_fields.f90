@@ -64,6 +64,7 @@ integer :: ms, me, ns, ne, is, ie, js, je, num_levels
 ! mj: generalisation to use interpolator capabilities
 real, allocatable,dimension(:,:,:) :: lmptmp
 real, allocatable,dimension(:,:,:) :: p_half,ln_p_half,p_full,ln_p_full
+
 ! --------
 ! mj: add random perturbation for ensembles
 real,allocatable,dimension(:,:,:) :: ug_i,vg_i
@@ -158,7 +159,6 @@ if (choice_of_init == 3) then !initialize with prescribed input
       call interpolator(init_conds, Time, p_half, vg, 'vcomp', is, js)
    endif
    call interpolator(init_conds, Time, p_half, tg, 'temp', is, js)
-
    ! and lastly, let us know that it worked!
    if(mpp_pe() == mpp_root_pe()) then
       print *, 'Initial dynamical fields read in from '//trim(initial_file)//'.nc'

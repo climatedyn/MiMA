@@ -648,6 +648,7 @@ if( do_read_init_sst ) then
    call interpolator_init( sst_interp, trim(sst_file)//'.nc',Atm%lon_bnd,Atm%lat_bnd, data_out_of_bounds=(/CONSTANT/) )
 endif
 
+
 !mj scale evaporation (flux_q) over land
 allocate(flux_q_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
 !mj do we need a land-sea mask?
@@ -658,10 +659,12 @@ endif
 !mj we need land-sea mask for roughness even if surface_choice .eq. 1 or do_external_sst is .true.
 if (trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmaskpole')then 
    ocean_mask_worked = get_ocean_mask(Atm%lon_bnd,Atm%lat_bnd,land_sea_mask)
+
    if(.not.ocean_mask_worked) then
       call error_mesg('get_ocean_mask','land_option="'//trim(land_option)//'"'// &
            ' and ocean_mask is not present or water data file does not exist', FATAL)
    endif
+
    allocate(land_sea_mask_r(size(Atm%t_bot,1),size(Atm%t_bot,2)))
    land_sea_mask_r = 0.0
    where(land_sea_mask) land_sea_mask_r = 1.0
@@ -670,6 +673,7 @@ endif
 
 if (surface_choice .eq. 1 .and. .not. do_external_sst)then
     allocate(land_sea_heat_capacity(size(Atm%t_bot,1), size(Atm%t_bot,2)))
+
     land_sea_heat_capacity = heat_capacity
    !mj ocean depth function of latitude
      if ( trop_capacity .ne. heat_capacity .or. np_cap_factor .ne. 1.0 ) then
@@ -691,6 +695,7 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
      endif
     
    
+
 
      if( trim(land_option) .eq. 'input' ) then
         ! read_data cannot deal with booleans, so need to pass via a real first
@@ -731,6 +736,7 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
               enddo
            enddo
         enddo
+
      ! cig land heat capacity function of ocean_mask (if ocean mask exists), and use MJ's algorithm for deeper ocean mixed layer depth for poles vs tropics
      else if(trim(land_option) .eq. 'oceanmaskpole')then
         
@@ -751,7 +757,9 @@ if (surface_choice .eq. 1 .and. .not. do_external_sst)then
                  land_sea_heat_capacity(:,j) = loc_cap
               end if
            enddo
+
            where(.not. land_sea_mask) land_sea_heat_capacity = land_capacity
+
         endif
      endif
 endif
