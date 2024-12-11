@@ -986,7 +986,7 @@ endif
 
 if ( do_qflux .or. do_warmpool) then
    call qflux_init
-!mj q-flux as in Merlis et al (2013) [Part II]
+   !mj q-flux as in Merlis et al (2013) [Part II]
    if ( do_qflux ) call qflux(Atm%lat_bnd,flux_o)
 !mj q-flux to create a tropical temperature perturbation
    if ( do_warmpool) call warmpool(Atm%lon_bnd,Atm%lat_bnd,flux_o)
