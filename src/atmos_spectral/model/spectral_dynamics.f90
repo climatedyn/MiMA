@@ -176,6 +176,7 @@ character(len=64) :: initial_file = 'initial_conditions'
 
 
 
+
 !===============================================================================================
 
 real, dimension(2) :: valid_range_t = (/ 100.,500./)
@@ -603,6 +604,7 @@ else
           vors(:,:,:,1), divs(:,:,:,1), ts(:,:,:,1), ln_ps(:,:,1), ug(:,:,:,1), vg(:,:,:,1),    &
           tg(:,:,:,1), psg(:,:,1), vorg, divg, surf_geopotential, ocean_mask,specify_initial_conditions, random_perturbation, &
           lonb, latb, initial_file, Time, init_conds)
+
   else
      call spectral_init_cond(reference_sea_level_press, triang_trunc, use_virtual_temperature, topography_option,  &
           vert_coord_option, vert_difference_option, scale_heights, surf_res, p_press, p_sigma, &
@@ -629,8 +631,6 @@ else
 !     !ts(1,:,:,1) = ts(1,:,:,1) + cmplx(random_perturbation,0)
 !     call trans_spherical_to_grid(ts(:,:,:,1),tg(:,:,:,1))
 !  endif
-     
-     
 
   vors (:,:,:,2) = vors (:,:,:,1)
   divs (:,:,:,2) = divs (:,:,:,1)
@@ -655,6 +655,22 @@ else
       if(specify_initial_conditions) then  
          !epg+ray: This loads in sphum from the file initial_conditions.nc
          !mj modified to use interpolator routines
+!         ! Allocate space to put the initial condition information, temporarily.
+!         allocate(lmptmp(size(ug,1),size(ug,2),size(ug,3)))
+!         ! need to get the pressure at half levels for interpolation
+!         allocate(p_full(size(ug,1), size(ug,2), size(ug,3)))
+!         allocate(ln_p_full(size(ug,1), size(ug,2), size(ug,3)))
+!         allocate(p_half(size(ug,1), size(ug,2), size(ug,3)+1))
+!         allocate(ln_p_half(size(ug,1), size(ug,2), size(ug,3)+1))
+!         ! use psg to compute p_half
+!         call pressure_variables(p_half, ln_p_half, p_full, ln_p_full, psg(:,:,1))
+!         call interpolator(init_conds, Time, p_half, lmptmp, 'sphum', is, js)
+!         grid_tracers(:,:,:,1,ntr) = lmptmp
+!         grid_tracers(:,:,:,2,ntr) = lmptmp
+!         deallocate(lmptmp,p_full,p_half,ln_p_full,ln_p_half)
+!         if(mpp_pe() == mpp_root_pe()) then
+!            print *,'tracer ', trim(tracer_attributes(ntr)%name), ' read in from initial_conditions.nc'
+!         endif
          call interpolator(init_conds, Time, p_half, lmptmp, 'sphum', is, js)
          grid_tracers(:,:,:,1,ntr) = lmptmp
          grid_tracers(:,:,:,2,ntr) = lmptmp

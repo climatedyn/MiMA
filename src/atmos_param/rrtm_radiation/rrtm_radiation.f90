@@ -199,6 +199,7 @@
 !---------------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------------
 
+
         namelist/rrtm_radiation_nml/ include_secondary_gases, do_read_ozone, &
              &ozone_file, ozone_name, scale_ozone, o3_val, do_use_ozone_tracer, &
              &do_read_h2o, h2o_file, h2o_name, ch4_val, n2o_val, o2_val, &
@@ -656,6 +657,7 @@
           if(.not. use_dyofyr) dyofyr=0 !use solrad instead of day of year
 
           !get ozone
+
           if(do_read_ozone .or. do_use_ozone_tracer)then
              if ( do_read_ozone ) then
                 call interpolator( o3_interp, Time_loc, p_half, o3f, ozone_name )

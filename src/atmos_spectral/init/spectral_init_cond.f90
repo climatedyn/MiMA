@@ -66,10 +66,12 @@ real,    intent(out), dimension(:,:  ) :: surf_geopotential
 logical, optional, intent(in), dimension(:,:) :: ocean_mask
 logical, intent(in) :: specify_initial_conditions   !epg+ray
 real,    intent(in) :: random_perturbation                ! mj initial conditions
+
 real,    intent(in), dimension(:), optional :: lonb, latb ! mj initial conditions
 character(len=*), intent(in), optional      :: initial_file ! mj initial conditions
 type(time_type), intent(in), optional       :: Time
 type(interpolate_type),intent(out),optional :: init_conds
+
 
 ! epg+ray: choice_of_init is used by spectral_initialize_fields to actually set up initial conditions
 integer :: choice_of_init = 2
@@ -105,7 +107,6 @@ else
    call spectral_initialize_fields(reference_sea_level_press, triang_trunc, choice_of_init, initial_temperature, &
         surf_geopotential, ln_ps, vors, divs, ts, psg, ug, vg, tg, vorg, divg, random_perturbation)
 endif
-
 
 call check_vert_coord(size(ug,3), psg)
 
