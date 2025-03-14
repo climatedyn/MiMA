@@ -150,10 +150,13 @@ dd = xr.merge(mds,compat='minimal')
 ##########################################################
 ftype = 'f4'
 ttype = ftype
-#tunit = 'days since 1970-01-01T00:00:00'
-tunit = str(dd.time[0].dt.strftime('days since %Y-%m-%dT%H:%M:%S').values)
-tcal  = 'julian'
-t_enc = {'units':tunit,'calendar':tcal,'dtype':ttype}
+if 'time' in dd.dims:
+    #tunit = 'days since 1970-01-01T00:00:00'
+    tunit = str(dd.time[0].dt.strftime('days since %Y-%m-%dT%H:%M:%S').values)
+    tcal  = 'julian'
+    t_enc = {'units':tunit,'calendar':tcal,'dtype':ttype}
+else:
+    t_enc = {}
 #
 #
 if args.a_out is not None:
