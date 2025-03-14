@@ -8,7 +8,8 @@ parser.add_argument('--ml',dest='ml_file',help="name of file containing data fro
 parser.add_argument('-o',dest='out_file',help="name of interpolated output file.")
 args = parser.parse_args()
 
-pl = xr.open_dataset(args.pl_file)
+
+pl = xr.open_dataset(args.pl_file).rename({'pressure_level':'level','valid_time':'time'})
 ml = xr.open_dataset(args.ml_file)
 lon_attrs = ml.longitude.attrs
 lat_attrs = ml.latitude.attrs
