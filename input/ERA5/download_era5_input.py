@@ -67,6 +67,7 @@ file3d = 'download_3d_levels.{0}.nc'.format(postfix)
 file2d = 'download_2d.{0}.nc'.format(postfix)
 
 file3d_ml = file3d.replace('levels','ml')
+file3d_ml2pl = file3d.replace('levels','ml2pl')
 file3d_pl = file3d.replace('levels','pl')
 
 if not args.analysis_only:
@@ -113,9 +114,9 @@ if not args.analysis_only:
 
 if not args.download_only:
     print('    CONVERTING MODEL LEVELS TO PRESSURE LEVELS')
-    command = ['python','ecmwf_hybrid_to_pressure.py','-A',file3d_ml,'-S',file2d,'-o',file3d_ml]
+    command = ['python','ecmwf_hybrid_to_pressure.py','-A',file3d_ml,'-S',file2d,'-o',file3d_ml2pl]
     print(' '.join(command))
-    subprocess.run(['python','ecmwf_hybrid_to_pressure.py','-A',file3d_ml,'-S',file2d,'-o',file3d_ml])
+    subprocess.run(command)
 
 if not args.analysis_only:
     print('  SECOND, ON PRESSURE LEVELS')
@@ -139,7 +140,7 @@ if args.download_only:
 
 file3d_mix = file3d.replace('_levels','')
 print('MERGING MODEL LEVEL AND PRESSURE LEVEL DATA INTO ONE FILE.')
-command = ['python','mix_ml_pl.py','--ml',file3d_ml,'--pl',file3d_pl,'-o',file3d_mix]
+command = ['python','mix_ml_pl.py','--ml',file3d_ml2pl,'--pl',file3d_pl,'-o',file3d_mix]
 print(' '.join(command))
 subprocess.run(command)
 

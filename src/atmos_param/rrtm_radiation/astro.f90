@@ -27,7 +27,7 @@ module rrtm_astro
         real(kind=rb)      :: solrad=1.0                      ! distance Earth-Sun [AU] if use_dyofyr=.false.
         integer            :: solday=0                        ! if >0, do perpetual run corresponding to 
                                                               !  day of the year = solday \in [0,days per year]
-        real(kind=rb)      :: equinox_day=0.25                ! fraction of the year defining March equinox \in [0,1]
+        real(kind=rb)      :: equinox_day=0.22                ! fraction of the year defining March equinox \in [0,1]
         
 
         namelist /astro_nml/ obliq,use_dyofyr,solr_cnst,solrad,solday,equinox_day
@@ -61,7 +61,7 @@ module rrtm_astro
 ! Computes the zenith angle for RRTM SW radiation
 !
 ! Modules
-            use time_manager_mod,only: time_type,get_time,length_of_year
+            use time_manager_mod,only: time_type,get_time,days_in_year,set_date,get_date,increment_date
             use constants_mod, only:   PI
             use fms_mod, only:         error_mesg,FATAL
 ! Local variables
@@ -74,12 +74,15 @@ module rrtm_astro
             real(kind=rb),dimension(:,:),intent(out):: cosz        ! cosine of zenith angle
             integer                     ,intent(out):: dyofyr      ! day of the year to compute cosz at
 ! Locals
+            type(time_type) :: jan_first,equinox_time
             real(kind=rb),dimension(size(lat,1),size(lat,2)) :: h,cos_h, &
                  lat_h
 
             real     :: dec_sin,dec_tan,dec,dec_cos,twopi,dt_pi
 
-            integer(8):: seconds,sec2,days,daysperyear
+            integer(8) :: seconds,sec2,days,edays,daysperyear
+            integer(8) :: year,month,day,hrs,mns,secs
+            integer(8) :: int_one=1,int_zero=0
             real,dimension(size(lon,1),size(lon,2)) :: time_pi,aa,bb,tt,st,stt,sh,fracday
             real     :: radsec,radday
 
@@ -95,7 +98,8 @@ module rrtm_astro
                call error_mesg('astro','astro_mod not initialized',FATAL)
             endif
 
-            call get_time(length_of_year(),sec2,daysperyear)
+            !call get_time(length_of_year(),sec2,daysperyear)
+            daysperyear = days_in_year(Time)
             if( daysperyear .ne. INT(365,8) .and. use_dyofyr ) then
              print*,' number of days per year: ',daysperyear
              call error_mesg ( 'astro', &
@@ -120,10 +124,14 @@ module rrtm_astro
             where(time_pi >= PI) time_pi = time_pi - twopi
             where(time_pi < -PI) time_pi = time_pi + twopi 
             !time_pi now contains local time at each grid point
-            !get day of the year relative to March equinox. We set equinox at (equinox_day,equinox_day+0.5)*daysperyear
+            !get day of the year relative to March equinox.
             !note that GFDL computes relative to September equinox
-            days = days - int(equinox_day*daysperyear)
-            dyofyr   = modulo(days,daysperyear) 
+            call get_date(Time,year,month,day,hrs,mns,secs)
+            jan_first = set_date(year,int_one,int_one)
+            equinox_time = increment_date(jan_first,int_zero,int_zero,int(equinox_day*daysperyear))
+            call get_time(equinox_time,seconds,edays)
+            days = days - edays
+            dyofyr   = modulo(days,daysperyear)
             !convert into radians
             radday = dyofyr*radperday
             !get declination

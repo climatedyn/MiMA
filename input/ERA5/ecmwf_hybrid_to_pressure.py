@@ -9,13 +9,13 @@ parser.add_argument('-A',dest='atmos_file',help="name of file containing model l
 parser.add_argument('-o',dest='out_file',help="name of interpolated output file.")
 args = parser.parse_args()
 
-ps = xr.open_dataset(args.surf_file)['sp']
+ps = xr.open_dataset(args.surf_file)['sp'].rename({'valid_time':'time'})
 if 'number' in ps.dims: # ensemble mean
     ps = ps.mean('number')
 #if len(ps.time) > 1:
 #    print('FOUND {0} TIME STEPS IN {1}, TAKING THE FIRST, WHICH IS {2}.'.format(len(ps.time),args.surf_file,ps.time.values[0]))
 #    ps = ps.isel(time=slice(0,1))
-atmos = xr.open_dataset(args.atmos_file)
+atmos = xr.open_dataset(args.atmos_file).rename({'model_level':'level','valid_time':'time'})
 if 'number' in atmos.dims:
     atmos = atmos.mean('number')
 #if len(atmos.time) > 1:

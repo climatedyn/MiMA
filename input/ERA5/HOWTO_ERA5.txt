@@ -1,4 +1,4 @@
-The main script here is `download_era5_input.py`, and it can be used to download and prepare ERA5 data for MiMA. The first two require a valid CDS Data account as well as a working cdsapi. It also requires `xarray`.
+The main script here is `download_era5_input.py`, and it can be used to download and prepare ERA5 data for MiMA. The first two require a valid CDS Data account as well as a working cdsapi. It also requires `xarray`, `wrf-python`, `scipy`, and `netcdf4`.
 
 # Downloading from ERA5
 

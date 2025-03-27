@@ -101,13 +101,13 @@ if args.atmos_file is not None:
     if args.average:
         da = da.mean(dim='time')
 if args.surf_file is not None:
-    ds = xr.open_dataset(args.surf_file).sortby('latitude')
+    ds = xr.open_dataset(args.surf_file).sortby('latitude').rename({'valid_time':'time'})
     if len(ds.time) > 1 and args.average:
         print('WARNING: AVERAGING {0} OVER {1} TIMESTEPS.'.format(args.surf_file,len(ds.time)))
     if args.average:
         ds = ds.mean(dim='time')
 if args.ts_file is not None:
-    dt = xr.open_dataset(args.ts_file).sortby('latitude')
+    dt = xr.open_dataset(args.ts_file).sortby('latitude').rename({'valid_time':'time'})
     if args.average:
         if len(dt.time) > 1:
               print('WARNING: AVERAGING {0} OVER {1} TIMESTEPS.'.format(args.ts_file,len(dt.time)))
@@ -144,16 +144,19 @@ if args.surf_file is not None:
     mds.append(ds)
 if args.ts_file is not None:
     mds.append(dt)
-dd = xr.merge(mds)
+dd = xr.merge(mds,compat='minimal')
 ##########################################################
 # finally, write the new files
 ##########################################################
 ftype = 'f4'
 ttype = ftype
-#tunit = 'days since 1970-01-01T00:00:00'
-tunit = str(dd.time[0].dt.strftime('days since %Y-%m-%dT%H:%M:%S').values)
-tcal  = 'julian'
-t_enc = {'units':tunit,'calendar':tcal,'dtype':ttype}
+if 'time' in dd.dims:
+    #tunit = 'days since 1970-01-01T00:00:00'
+    tunit = str(dd.time[0].dt.strftime('days since %Y-%m-%dT%H:%M:%S').values)
+    tcal  = 'julian'
+    t_enc = {'units':tunit,'calendar':tcal,'dtype':ttype}
+else:
+    t_enc = {}
 #
 #
 if args.a_out is not None:
