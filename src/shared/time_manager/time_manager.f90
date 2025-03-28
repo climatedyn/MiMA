@@ -1915,6 +1915,7 @@ integer(8) :: oseconds, ominutes, ohours, odays, omonths, oyears
 integer(8) :: csecond, cminute, chour, cday, cmonth, cyear, dyear
 type(time_type) :: t
 integer(8),parameter :: zero=0,twelve=12
+integer(8) :: daysinmonth
 
 ! Missing optionals are set to 0
 oseconds = zero; if(present(seconds)) oseconds = seconds
@@ -1953,7 +1954,11 @@ if(cmonth > twelve) then
    cmonth = cmonth - twelve * dyear
    cyear = cyear + dyear
 end if
-
+!mj Check for months with less days than initial month
+daysinmonth = days_per_month(cmonth)
+if(((cyear / 4 * 4) == cyear) .and. cmonth == 2) daysinmonth = 29
+cday = min(cday,daysinmonth)
+   
 ! Convert this back into a time
 increment_julian = set_date_julian(cyear, cmonth, cday, chour, cminute, csecond)
 
