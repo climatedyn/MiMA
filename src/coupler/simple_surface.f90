@@ -425,6 +425,8 @@ endif
    if ( id_drag_moist  > 0 ) used = send_data ( id_drag_moist, cd_q,               Time )
    if ( id_drag_heat   > 0 ) used = send_data ( id_drag_heat,  cd_t,               Time )
    if ( id_drag_mom    > 0 ) used = send_data ( id_drag_mom,   cd_m,               Time )
+   if ( id_u_flux      > 0 ) used = send_data ( id_u_flux,     flux_u,             Time )
+   if ( id_v_flux      > 0 ) used = send_data ( id_v_flux,     flux_v,             Time )
    if ( id_rough_heat  > 0 ) used = send_data ( id_rough_heat, rough_heat,         Time )
    if ( id_rough_mom   > 0 ) used = send_data ( id_rough_mom,  rough_mom,          Time )
    if ( id_rough_moist > 0 ) used = send_data ( id_rough_moist,  rough_moist,      Time )
