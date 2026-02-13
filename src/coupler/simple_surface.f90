@@ -86,13 +86,13 @@ real ::   z_ref_heat      = 2.,       &
           albedo_cntrNH     = 65.,    & !cig
           albedo_desert     = 0.20,   & !cig
           albedo_wdth     = 10.,      & !mj
+	  higher_albedo    = 0.38,    &
+	  lat_glacier      = 45.,     &
 	  max_of          = 25.,      &
 	  lonmax_of       = 180.,     &
 	  latmax_of       = 0.,       &
           latwidth_of     = 15.,      &
 	  lonwidth_of     = 90.,      &
-	  higher_albedo    = 0.38,    &
-	  lat_glacier      = 45.,     &
 	  maxofmerid       = .5,      &
 	  latmaxofmerid    = 25.,     &
 	  Tm               = 305.,    &
@@ -107,14 +107,19 @@ real ::   mom_roughness_land  = 1., &
 integer :: surface_choice   = 1
 integer :: roughness_choice = 1
 integer :: albedo_choice    = 1 ! 1->constant, 2->NH or SH step, 3->N-S symmetric step, 4->profile with albedo_exp,5->tanh with albedo_cntrNH,albedo_cntrSH,albedo_wdth,  6->sin2 increase from equator to pole, 7->as in 5 but with higher albedo for deserts
+                                ! note this is ignored if do_read_albedo = .true.
 logical :: do_oflx          = .false.
 logical :: do_oflxmerid     = .false.
 logical :: do_qflux         = .false. !mj
 logical :: do_warmpool      = .false. !mj
 logical :: do_read_init_sst = .false. !mj
 logical :: do_external_sst  = .false. !mj
+logical :: sst_only         = .false. !mj
+logical :: do_read_albedo   = .false. !mj
 character(len=256) :: sst_file
 character(len=256) :: sst_name 
+character(len=256) :: albedo_file     = 'albedo' !mj
+character(len=256) :: albedo_name     = 'albedo' !mj
 character(len=256) :: land_option = 'none'
 character(len=256) :: land_sea_mask_file = 'lmask'
 real,dimension(10) :: slandlon=0,slandlat=0,elandlon=-1,elandlat=-1
@@ -131,10 +136,12 @@ namelist /simple_surface_nml/ z_ref_heat, z_ref_mom,             &
 			      do_oflxmerid, maxofmerid, latmaxofmerid, Tm, &
 			      deltaT,  mom_roughness_land,  q_roughness_land,     &  !cig
                               do_qflux,do_warmpool,              &  !mj
-                              do_read_init_sst,do_external_sst,sst_file,sst_name,    &  !mj
+                              do_read_init_sst,do_external_sst,  &  !mj
+                              sst_only,sst_file,sst_name,        &  !mj
                               land_option,slandlon,slandlat,     &  !mj
                               elandlon,elandlat,                 &
-                              albedo_exp,albedo_cntrSH,albedo_cntrNH,albedo_wdth,albedo_desert     !mj
+                              albedo_exp,albedo_cntrSH,albedo_cntrNH,albedo_wdth,albedo_desert,  &   !mj
+                              do_read_albedo,albedo_file,albedo_name    !mj
 
 !-----------------------------------------------------------------------
 
@@ -156,7 +163,7 @@ namelist /simple_surface_nml/ z_ref_heat, z_ref_mom,             &
 !mj  but can also use navy_pcwater of course 
   real,allocatable,dimension(:,:):: land_sea_mask_r
   logical,allocatable,dimension(:,:):: land_sea_mask,flux_q_mask
-  type(interpolate_type),save :: sst_interp, lmask_interp
+  type(interpolate_type),save :: sst_interp, lmask_interp, albedo_interp
 
 
 
@@ -277,8 +284,12 @@ pi = 4.0*atan(1.)
 
  endif
 
+ ! SURFACE ALBEDO
 
-
+ if ( do_read_albedo ) then
+   call interpolator( albedo_interp, Time, albedo, albedo_name )
+ else
+    
    if(albedo_choice == 1) then
      albedo = const_albedo
    elseif(albedo_choice == 2) then
@@ -369,8 +380,9 @@ pi = 4.0*atan(1.)
 	enddo
      enddo
 
+  endif
 endif
-
+  
    cd_t = 0.0
    cd_m = 0.0
    cd_q = 0.0
@@ -500,10 +512,10 @@ real, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
    dedt_surf  =  dedt_surf     + dedq_atm * e_q_n
 
    if(surface_choice == 1) then
-      if(do_external_sst) then !mj sst read from input file
-         call interpolator( sst_interp, Time, sst_new, sst_name )
+      if(do_external_sst) call interpolator( sst_interp, Time, sst_new, sst_name )
+      if(do_external_sst .and. .not. sst_only) then !mj sst read from input file
          dt_t_surf = sst_new - sst
-        
+
       else 
          flux    = (flux_lw + Atm%flux_sw - hlf*Atm%fprec &
               - (flux_t + hlv*flux_q) + flux_o)*dt/land_sea_heat_capacity
@@ -516,6 +528,14 @@ real, dimension(size(Atm%t_bot,1), size(Atm%t_bot,2)) :: &
 ! mj end
 
          dt_t_surf = flux/(1.0 -deriv)
+
+         if (sst_only) then
+            if( allocated(land_sea_mask) )then
+               where ( land_sea_mask ) dt_t_surf = sst_new - sst
+            else
+               dt_t_surf = sst_new - sst
+            endif
+         endif
       endif
 
    elseif(surface_choice == 2) then
@@ -650,6 +670,10 @@ if( do_read_init_sst ) then
    call interpolator_init( sst_interp, trim(sst_file)//'.nc',Atm%lon_bnd,Atm%lat_bnd, data_out_of_bounds=(/CONSTANT/) )
 endif
 
+!mj read albedo
+if( do_read_albedo ) then
+   call interpolator_init( albedo_interp, trim(albedo_file)//'.nc',Atm%lon_bnd,Atm%lat_bnd, data_out_of_bounds=(/CONSTANT/) )
+endif
 
 !mj scale evaporation (flux_q) over land
 allocate(flux_q_mask(size(Atm%t_bot,1),size(Atm%t_bot,2)))
@@ -673,7 +697,8 @@ if (trim(land_option) .eq. 'interpolated' .or. trim(land_option) .eq. 'oceanmask
 endif
 
 
-if (surface_choice .eq. 1 .and. .not. do_external_sst)then
+!if (surface_choice .eq. 1 .and. .not. do_external_sst)then
+if ( (surface_choice .eq. 1) .and. (.not. do_external_sst .or. sst_only) )then
     allocate(land_sea_heat_capacity(size(Atm%t_bot,1), size(Atm%t_bot,2)))
 
     land_sea_heat_capacity = heat_capacity
